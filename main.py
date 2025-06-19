@@ -2,14 +2,13 @@ import os
 import asyncio
 import logging
 import psycopg2
-from datetime import datetime, date
+from datetime import datetime
 from flask import Flask, render_template, request
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, ContextTypes
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from threading import Thread
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -90,15 +89,15 @@ async def run_bot():
     application.add_handler(CommandHandler("play", play))
     scheduler = AsyncIOScheduler()
     scheduler.start()
+    await application.initialize()
+    await application.start()
     await application.run_polling()
 
-def run_flask():
+async def main():
+    loop = asyncio.get_event_loop()
+    loop.create_task(run_bot())
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    loop.run_forever()
 
-# === 启动入口 ===
 if __name__ == "__main__":
-    # 先启动 Flask 子线程
-    Thread(target=run_flask).start()
-
-    # Bot 在主线程中运行（支持信号处理器）
-    asyncio.run(run_bot())
+    asyncio.run(main())
