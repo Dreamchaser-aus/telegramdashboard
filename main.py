@@ -44,8 +44,14 @@ def init_db():
                 created_at TEXT,
                 last_play TEXT,
                 invited_by BIGINT,
-                inviter_rewarded INTEGER DEFAULT 0,
                 is_blocked INTEGER DEFAULT 0
+            );
+        ''')
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS invite_rewards (
+                invited_user_id BIGINT PRIMARY KEY,
+                inviter_user_id BIGINT NOT NULL,
+                rewarded_at TEXT
             );
         ''')
         conn.commit()
@@ -57,7 +63,7 @@ def dashboard():
         if keyword:
             c.execute("""
                 SELECT u.user_id, u.first_name, u.last_name, u.username, u.phone, u.points, u.plays,
-                       u.created_at, u.last_play, u.invited_by, u.inviter_rewarded, u.is_blocked,
+                       u.created_at, u.last_play, u.invited_by, u.is_blocked,
                        i.username as inviter_username
                 FROM users u
                 LEFT JOIN users i ON u.invited_by = i.user_id
@@ -66,7 +72,7 @@ def dashboard():
         else:
             c.execute("""
                 SELECT u.user_id, u.first_name, u.last_name, u.username, u.phone, u.points, u.plays,
-                       u.created_at, u.last_play, u.invited_by, u.inviter_rewarded, u.is_blocked,
+                       u.created_at, u.last_play, u.invited_by, u.is_blocked,
                        i.username as inviter_username
                 FROM users u LEFT JOIN users i ON u.invited_by = i.user_id
             """)
@@ -195,27 +201,44 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def reward_inviter(user_id, context):
     try:
         with get_conn() as conn, conn.cursor() as c:
-            c.execute("SELECT invited_by, phone, inviter_rewarded, plays FROM users WHERE user_id = %s", (user_id,))
+            # 查询用户信息
+            c.execute("SELECT invited_by, phone, plays FROM users WHERE user_id = %s", (user_id,))
             row = c.fetchone()
-            if row:
-                inviter, phone, rewarded, plays = row
-                logging.info(f"奖励检测: inviter={inviter}, phone={phone}, rewarded={rewarded}, plays={plays}")
-                if inviter and phone and not rewarded and plays > 0:
-                    c.execute("UPDATE users SET points = points + 10 WHERE user_id = %s RETURNING points", (inviter,))
-                    inviter_points = c.fetchone()[0]
-                    c.execute("UPDATE users SET inviter_rewarded = 1 WHERE user_id = %s", (user_id,))
-                    conn.commit()
-                    try:
-                        await context.bot.send_message(
-                            chat_id=inviter,
-                            text=(
-                                f"🎉 你邀请的用户成功参与游戏，获得 +10 积分奖励！\n"
-                                f"🏆 当前总积分：{inviter_points}\n"
-                                f"继续邀请更多好友，积分越多越精彩！"
-                            )
-                        )
-                    except Exception as e:
-                        logging.warning(f"邀请积分通知发送失败，邀请人ID: {inviter}, 错误: {e}")
+            if not row:
+                return
+            inviter, phone, plays = row
+            if not inviter or not phone or plays == 0:
+                return  # 不满足奖励条件
+
+            # 检查是否已奖励过
+            c.execute("SELECT 1 FROM invite_rewards WHERE invited_user_id = %s", (user_id,))
+            if c.fetchone():
+                return  # 已奖励过，跳过
+
+            # 发放奖励
+            c.execute("UPDATE users SET points = points + 10 WHERE user_id = %s RETURNING points", (inviter,))
+            inviter_points = c.fetchone()[0]
+
+            # 记录奖励发放
+            c.execute(
+                "INSERT INTO invite_rewards (invited_user_id, inviter_user_id, rewarded_at) VALUES (%s, %s, %s)",
+                (user_id, inviter, datetime.now().isoformat())
+            )
+            conn.commit()
+
+            # 发送通知给邀请人
+            try:
+                await context.bot.send_message(
+                    chat_id=inviter,
+                    text=(
+                        f"🎉 你邀请的用户成功参与游戏，获得 +10 积分奖励！\n"
+                        f"🏆 当前总积分：{inviter_points}\n"
+                        "继续邀请更多好友，积分越多越精彩！"
+                    )
+                )
+            except Exception as e:
+                logging.warning(f"邀请积分通知发送失败，邀请人ID: {inviter}, 错误: {e}")
+
     except Exception as e:
         logging.error(f"奖励邀请者失败: {e}")
 
@@ -348,19 +371,18 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     with get_conn() as conn, conn.cursor() as c:
         c.execute("""
-            SELECT points, plays, inviter_rewarded
+            SELECT points, plays
             FROM users WHERE user_id = %s
         """, (user.id,))
         row = c.fetchone()
     if not row:
         await update.message.reply_text("⚠️ 你还未注册，请先发送 /start")
         return
-    points, plays, invited_rewarded = row
+    points, plays = row
     msg = (
         f"👤 用户资料：\n"
         f"🎯 总积分：{points}\n"
         f"🎲 今日游戏次数：{plays} / 10\n"
-        f"🎁 邀请奖励已领取：{'是' if invited_rewarded else '否'}\n"
         f"🔗 发送 /invite 获取邀请链接赚积分！"
     )
     await update.message.reply_text(msg)
