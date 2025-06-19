@@ -58,24 +58,53 @@ def init_db():
 
 @app.route("/")
 def dashboard():
-    keyword = request.args.get("keyword", "")
+    keyword = request.args.get("keyword", "").strip()
+    invited_by_filter = request.args.get("invited_by", "").strip()
+    phone_filter = request.args.get("phone", "").strip()
+    is_authorized = request.args.get("authorized", "").strip()
+    page = int(request.args.get("page", 1))
+    per_page = 50
+
+    where_clauses = []
+    params = []
+
+    if keyword:
+        where_clauses.append("(u.username ILIKE %s OR u.phone ILIKE %s)")
+        params.extend([f"%{keyword}%", f"%{keyword}%"])
+    if invited_by_filter:
+        where_clauses.append("i.username ILIKE %s")
+        params.append(f"%{invited_by_filter}%")
+    if phone_filter:
+        where_clauses.append("u.phone ILIKE %s")
+        params.append(f"%{phone_filter}%")
+    if is_authorized == "1":
+        where_clauses.append("u.phone IS NOT NULL")
+    elif is_authorized == "0":
+        where_clauses.append("u.phone IS NULL")
+
+    where_sql = " AND ".join(where_clauses)
+    if where_sql:
+        where_sql = "WHERE " + where_sql
+
     with get_conn() as conn, conn.cursor() as c:
-        if keyword:
-            c.execute("""
-                SELECT u.user_id, u.first_name, u.last_name, u.username, u.phone, u.points, u.plays,
-                       u.created_at, u.last_play, u.invited_by, u.is_blocked,
-                       i.username as inviter_username
-                FROM users u
-                LEFT JOIN users i ON u.invited_by = i.user_id
-                WHERE u.username ILIKE %s OR u.phone ILIKE %s
-            """, (f"%{keyword}%", f"%{keyword}%"))
-        else:
-            c.execute("""
-                SELECT u.user_id, u.first_name, u.last_name, u.username, u.phone, u.points, u.plays,
-                       u.created_at, u.last_play, u.invited_by, u.is_blocked,
-                       i.username as inviter_username
-                FROM users u LEFT JOIN users i ON u.invited_by = i.user_id
-            """)
+        c.execute(f"""
+            SELECT COUNT(*)
+            FROM users u LEFT JOIN users i ON u.invited_by = i.user_id
+            {where_sql}
+        """, params)
+        total_count = c.fetchone()[0]
+
+        offset = (page - 1) * per_page
+
+        c.execute(f"""
+            SELECT u.user_id, u.first_name, u.last_name, u.username, u.phone, u.points, u.plays,
+                   u.created_at, u.last_play, u.invited_by, u.is_blocked,
+                   i.username as inviter_username
+            FROM users u LEFT JOIN users i ON u.invited_by = i.user_id
+            {where_sql}
+            ORDER BY u.created_at DESC
+            LIMIT %s OFFSET %s
+        """, params + [per_page, offset])
         users = c.fetchall()
 
         c.execute("SELECT username, first_name, points FROM users ORDER BY points DESC LIMIT 10")
@@ -98,36 +127,18 @@ def dashboard():
         "total_users": total_users,
         "authorized_users": authorized_users,
         "blocked_users": blocked_users,
-        "total_points": total_points
+        "total_points": total_points,
+        "total_count": total_count,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": (total_count + per_page - 1) // per_page
     }
 
-    return render_template("dashboard.html", users=users, stats=stats, total_rank=total_rank, today_rank=today_rank)
+    return render_template("dashboard.html", users=users, stats=stats, total_rank=total_rank, today_rank=today_rank,
+                           keyword=keyword, invited_by_filter=invited_by_filter, phone_filter=phone_filter,
+                           is_authorized=is_authorized)
 
-@app.route("/update_user", methods=["POST"])
-def update_user():
-    user_id = request.form.get("user_id")
-    try:
-        points = int(request.form.get("points", 0))
-        plays = int(request.form.get("plays", 0))
-        is_blocked = int(request.form.get("is_blocked", 0))
-    except ValueError:
-        return "参数错误", 400
-
-    with get_conn() as conn, conn.cursor() as c:
-        c.execute(
-            "UPDATE users SET points = %s, plays = %s, is_blocked = %s WHERE user_id = %s",
-            (points, plays, is_blocked, user_id)
-        )
-        conn.commit()
-    return "OK"
-
-@app.route("/delete_user", methods=["POST"])
-def delete_user():
-    user_id = request.form.get("user_id")
-    with get_conn() as conn, conn.cursor() as c:
-        c.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
-        conn.commit()
-    return "OK"
+# --- Telegram Bot 相关代码开始 ---
 
 async def send_game_rules(chat_id, bot, language_code='zh'):
     if language_code and language_code.startswith('en'):
@@ -196,37 +207,32 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🎲 开始游戏", callback_data="start_game")]])
     await update.message.reply_text("✅ 手机号授权成功！点击按钮开始游戏吧～", reply_markup=keyboard)
-    await reward_inviter(user.id, context)  # 授权成功后触发奖励检测
+    await reward_inviter(user.id, context)
 
 async def reward_inviter(user_id, context):
     try:
         with get_conn() as conn, conn.cursor() as c:
-            # 查询用户信息
             c.execute("SELECT invited_by, phone, plays FROM users WHERE user_id = %s", (user_id,))
             row = c.fetchone()
             if not row:
                 return
             inviter, phone, plays = row
             if not inviter or not phone or plays == 0:
-                return  # 不满足奖励条件
+                return
 
-            # 检查是否已奖励过
             c.execute("SELECT 1 FROM invite_rewards WHERE invited_user_id = %s", (user_id,))
             if c.fetchone():
-                return  # 已奖励过，跳过
+                return
 
-            # 发放奖励
             c.execute("UPDATE users SET points = points + 10 WHERE user_id = %s RETURNING points", (inviter,))
             inviter_points = c.fetchone()[0]
 
-            # 记录奖励发放
             c.execute(
                 "INSERT INTO invite_rewards (invited_user_id, inviter_user_id, rewarded_at) VALUES (%s, %s, %s)",
                 (user_id, inviter, datetime.now().isoformat())
             )
             conn.commit()
 
-            # 发送通知给邀请人
             try:
                 await context.bot.send_message(
                     chat_id=inviter,
@@ -278,7 +284,6 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             total = c.fetchone()[0]
             conn.commit()
 
-        # 游戏成功后触发奖励检测，补充调用
         await reward_inviter(user.id, context)
 
         if score > 0:
@@ -340,7 +345,6 @@ async def handle_group_dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             total = c.fetchone()[0]
             conn.commit()
 
-        # 同样这里也触发奖励检测
         await reward_inviter(user.id, context)
 
         if score > 0:
