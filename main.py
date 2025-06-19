@@ -17,6 +17,10 @@ from telegram.ext import (
 )
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
+from dotenv import load_dotenv
+
+load_dotenv()
+nest_asyncio.apply()
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -24,13 +28,9 @@ logging.basicConfig(level=logging.INFO)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-nest_asyncio.apply()
-
-# 获取数据库连接
 def get_conn():
     return psycopg2.connect(DATABASE_URL)
 
-# 初始化数据库
 def init_db():
     conn = get_conn()
     c = conn.cursor()
@@ -53,28 +53,78 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Flask 后台管理页面
 @app.route("/")
 def dashboard():
     keyword = request.args.get("keyword", "")
     conn = get_conn()
     c = conn.cursor()
+
+    # 查询用户数据
     if keyword:
         c.execute("""
-            SELECT u.user_id, u.username, u.phone, u.points, u.plays, u.invited_by, i.username
+            SELECT u.*, i.username
             FROM users u LEFT JOIN users i ON u.invited_by = i.user_id
             WHERE u.username ILIKE %s OR u.phone ILIKE %s
         """, (f"%{keyword}%", f"%{keyword}%"))
     else:
         c.execute("""
-            SELECT u.user_id, u.username, u.phone, u.points, u.plays, u.invited_by, i.username
+            SELECT u.*, i.username
             FROM users u LEFT JOIN users i ON u.invited_by = i.user_id
         """)
     users = c.fetchall()
-    conn.close()
-    return render_template("dashboard.html", users=users)
 
-# Telegram Bot 逻辑开始
+    # 排行榜与统计数据
+    c.execute("SELECT username, first_name, points FROM users ORDER BY points DESC LIMIT 10")
+    total_rank = c.fetchall()
+
+    today = date.today().isoformat()
+    c.execute("SELECT username, first_name, points FROM users WHERE last_play LIKE %s ORDER BY points DESC LIMIT 10", (f"{today}%",))
+    today_rank = c.fetchall()
+
+    c.execute("SELECT COUNT(*) FROM users")
+    total_users = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM users WHERE phone IS NOT NULL")
+    authorized_users = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM users WHERE is_blocked = 1")
+    blocked_users = c.fetchone()[0]
+    c.execute("SELECT SUM(points) FROM users")
+    total_points = c.fetchone()[0] or 0
+
+    conn.close()
+    stats = {
+        "total_users": total_users,
+        "authorized_users": authorized_users,
+        "blocked_users": blocked_users,
+        "total_points": total_points
+    }
+
+    return render_template("dashboard.html", users=users, stats=stats, total_rank=total_rank, today_rank=today_rank)
+
+@app.route("/update_user", methods=["POST"])
+def update_user():
+    user_id = request.form["user_id"]
+    points = int(request.form["points"])
+    plays = int(request.form["plays"])
+    is_blocked = int(request.form["is_blocked"])
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("UPDATE users SET points = %s, plays = %s, is_blocked = %s WHERE user_id = %s",
+              (points, plays, is_blocked, user_id))
+    conn.commit()
+    conn.close()
+    return "OK"
+
+@app.route("/delete_user", methods=["POST"])
+def delete_user():
+    user_id = request.form["user_id"]
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
+    conn.commit()
+    conn.close()
+    return "OK"
+
+# Telegram Bot 逻辑
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     inviter_id = None
@@ -91,8 +141,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         now = datetime.now().isoformat()
         c.execute("""
             INSERT INTO users (user_id, first_name, last_name, username, plays, points, created_at, invited_by)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (user.id, user.first_name, user.last_name, user.username, 0, 0, now, inviter_id))
+            VALUES (%s, %s, %s, %s, 0, 0, %s, %s)
+        """, (user.id, user.first_name, user.last_name, user.username, now, inviter_id))
         conn.commit()
     conn.close()
 
@@ -107,7 +157,6 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     phone = update.message.contact.phone_number
     conn = get_conn()
     c = conn.cursor()
-
     c.execute("UPDATE users SET phone = %s WHERE user_id = %s", (phone, user.id))
     conn.commit()
     conn.close()
@@ -115,6 +164,23 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🎲 开始游戏", callback_data="start_game")]])
     await update.message.reply_text("✅ 手机号授权成功！点击按钮开始游戏吧～", reply_markup=keyboard)
     await reward_inviter(user.id, context)
+
+async def reward_inviter(user_id, context):
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT invited_by, phone, inviter_rewarded, plays FROM users WHERE user_id = %s", (user_id,))
+    row = c.fetchone()
+    if row:
+        inviter, phone, rewarded, plays = row
+        if inviter and phone and not rewarded and plays > 0:
+            c.execute("UPDATE users SET points = points + 10 WHERE user_id = %s", (inviter,))
+            c.execute("UPDATE users SET inviter_rewarded = 1 WHERE user_id = %s", (user_id,))
+            conn.commit()
+            try:
+                context.bot.send_message(chat_id=inviter, text="🎁 你邀请的用户已成功参与游戏，积分 +10！")
+            except:
+                pass
+    conn.close()
 
 async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -149,11 +215,7 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     dice2 = await context.bot.send_dice(chat_id=query.message.chat_id)
     await asyncio.sleep(3)
 
-    score = 0
-    if dice1.dice.value > dice2.dice.value:
-        score = 10
-    elif dice1.dice.value < dice2.dice.value:
-        score = -5
+    score = 10 if dice1.dice.value > dice2.dice.value else -5 if dice1.dice.value < dice2.dice.value else 0
 
     c.execute("UPDATE users SET points = points + %s, plays = plays + 1, last_play = %s WHERE user_id = %s",
               (score, datetime.now().isoformat(), user.id))
@@ -168,32 +230,11 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🎲 再来一次", callback_data="start_game")]])
     await context.bot.send_message(chat_id=query.message.chat_id, text=msg, reply_markup=keyboard)
 
-async def reward_inviter(user_id, context):
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute("SELECT invited_by, phone, inviter_rewarded, plays FROM users WHERE user_id = %s", (user_id,))
-    row = c.fetchone()
-    if row:
-        inviter, phone, rewarded, plays = row
-        if inviter and phone and not rewarded and plays > 0:
-            c.execute("UPDATE users SET points = points + 10 WHERE user_id = %s", (inviter,))
-            c.execute("UPDATE users SET inviter_rewarded = 1 WHERE user_id = %s", (user_id,))
-            conn.commit()
-            try:
-                context.bot.send_message(chat_id=inviter, text="🎁 你邀请的用户已成功参与游戏，积分 +10！")
-            except:
-                pass
-    conn.close()
-
 async def show_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today = date.today().isoformat()
     conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        SELECT username, first_name, points FROM users
-        WHERE last_play LIKE %s
-        ORDER BY points DESC LIMIT 10
-    """, (f"{today}%",))
+    c.execute("SELECT username, first_name, points FROM users WHERE last_play LIKE %s ORDER BY points DESC LIMIT 10", (f"{today}%",))
     rows = c.fetchall()
     conn.close()
     if not rows:
@@ -220,7 +261,7 @@ async def run_telegram_bot():
     app_.add_handler(CommandHandler("share", share))
     app_.add_handler(MessageHandler(filters.CONTACT, contact_handler))
     app_.add_handler(CallbackQueryHandler(start_game_callback, pattern="^start_game$"))
-    app_.add_handler(ChatMemberHandler(lambda u, c: None, ChatMemberHandler.CHAT_MEMBER))  # 可扩展群组事件
+    app_.add_handler(ChatMemberHandler(lambda u, c: None, ChatMemberHandler.CHAT_MEMBER))
     await app_.run_polling(close_loop=False)
 
 def reset_daily():
