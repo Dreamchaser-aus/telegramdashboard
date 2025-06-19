@@ -5,12 +5,9 @@ import psycopg2
 from datetime import datetime
 from flask import Flask, render_template, request
 from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, ContextTypes
-)
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
-from threading import Thread
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -30,8 +27,6 @@ def init_db():
     c.execute("""
     CREATE TABLE IF NOT EXISTS users (
         user_id BIGINT PRIMARY KEY,
-        first_name TEXT,
-        last_name TEXT,
         username TEXT,
         phone TEXT,
         points INTEGER DEFAULT 0,
@@ -76,25 +71,33 @@ def dashboard():
     conn.close()
     return render_template("dashboard.html", users=users)
 
-# === Telegram Bot ===
+# === Telegram Bot Handler ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🎲 欢迎来到骰子游戏！发送 /play 开始掷骰子～")
+    await update.message.reply_text("👋 欢迎来到骰子游戏！发送 /play 开始游戏。")
 
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_dice("🎲")
+    await update.message.reply_dice()
 
-async def run_bot():
+async def run_telegram_bot():
     init_db()
     app_ = ApplicationBuilder().token(BOT_TOKEN).build()
     app_.add_handler(CommandHandler("start", start))
     app_.add_handler(CommandHandler("play", play))
     scheduler = AsyncIOScheduler()
     scheduler.start()
-    await app_.run_polling()
+    await app_.run_polling(close_loop=False)
 
-def bot_thread():
-    asyncio.run(run_bot())
+async def run_flask():
+    from hypercorn.asyncio import serve
+    from hypercorn.config import Config
+    config = Config()
+    config.bind = ["0.0.0.0:8080"]
+    await serve(app, config)
+
+async def main():
+    bot_task = asyncio.create_task(run_telegram_bot())
+    flask_task = asyncio.create_task(run_flask())
+    await asyncio.gather(bot_task, flask_task)
 
 if __name__ == "__main__":
-    Thread(target=bot_thread).start()        # Bot 子线程运行 asyncio
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))  # Flask 主线程运行
+    asyncio.run(main())
