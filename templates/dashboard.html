@@ -2,7 +2,6 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Telegram 用户后台管理</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
 </head>
@@ -10,43 +9,36 @@
 <div class="container py-4">
   <h1 class="mb-4">Telegram 用户后台管理</h1>
 
-  <!-- 搜索筛选表单 -->
-  <form method="get" action="/" class="row g-3 mb-4">
+  <form method="get" class="row g-3 mb-3">
     <div class="col-md-3">
-      <input type="text" name="keyword" class="form-control" placeholder="用户名或手机号" value="{{ keyword }}">
+      <input type="text" name="keyword" class="form-control" placeholder="用户名或手机号" value="{{ keyword or '' }}" />
     </div>
     <div class="col-md-3">
-      <input type="text" name="invited_by" class="form-control" placeholder="邀请人用户名" value="{{ invited_by_filter }}">
+      <input type="text" name="invited_by" class="form-control" placeholder="邀请人用户名" value="{{ invited_by_filter or '' }}" />
     </div>
     <div class="col-md-3">
-      <input type="text" name="phone" class="form-control" placeholder="手机号" value="{{ phone_filter }}">
+      <input type="text" name="phone" class="form-control" placeholder="手机号" value="{{ phone_filter or '' }}" />
     </div>
     <div class="col-md-2">
       <select name="authorized" class="form-select">
-        <option value="" {% if is_authorized == "" %}selected{% endif %}>全部</option>
-        <option value="1" {% if is_authorized == "1" %}selected{% endif %}>已授权</option>
-        <option value="0" {% if is_authorized == "0" %}selected{% endif %}>未授权</option>
+        <option value="" {% if not is_authorized %}selected{% endif %}>全部</option>
+        <option value="1" {% if is_authorized == '1' %}selected{% endif %}>已授权手机号</option>
+        <option value="0" {% if is_authorized == '0' %}selected{% endif %}>未授权手机号</option>
       </select>
     </div>
-    <div class="col-md-1 d-grid">
-      <button type="submit" class="btn btn-primary">搜索</button>
+    <div class="col-md-1">
+      <button type="submit" class="btn btn-primary w-100">搜索</button>
     </div>
   </form>
 
-  <!-- 统计信息 -->
-  <div class="row mb-4">
-    <div class="col">
-      <div class="alert alert-info">
-        总用户数：{{ stats.total_users }} &nbsp;|&nbsp;
-        已授权手机号：{{ stats.authorized_users }} &nbsp;|&nbsp;
-        已封禁用户：{{ stats.blocked_users }} &nbsp;|&nbsp;
-        总积分：{{ stats.total_points }}
-      </div>
-    </div>
+  <div class="alert alert-info">
+    总用户数: {{ stats.total_users }} |
+    已授权手机号: {{ stats.authorized_users }} |
+    已封禁用户: {{ stats.blocked_users }} |
+    总积分: {{ stats.total_points }}
   </div>
 
-  <!-- 用户列表表格 -->
-  <table class="table table-striped table-bordered align-middle">
+  <table class="table table-bordered table-striped align-middle">
     <thead class="table-dark">
       <tr>
         <th>用户ID</th>
@@ -58,6 +50,7 @@
         <th>封禁状态</th>
         <th>注册时间</th>
         <th>最后游戏时间</th>
+        <th>操作</th>
       </tr>
     </thead>
     <tbody>
@@ -65,71 +58,64 @@
       <tr>
         <td>{{ user[0] }}</td>
         <td>
-          {{ user[3] or "无" }}
-          {% if user[1] or user[2] %}
-            <br /><small>{{ user[1] or "" }} {{ user[2] or "" }}</small>
-          {% endif %}
+          {{ user[3] or '无用户名' }}<br/>
+          <small>{{ user[1] or '' }} {{ user[2] or '' }}</small>
         </td>
-        <td>{{ user[4] or "未授权" }}</td>
+        <td>{{ user[4] or '未授权' }}</td>
         <td>{{ user[5] }}</td>
         <td>{{ user[6] }}</td>
-        <td>{{ user[11] or "无" }}</td>
+        <td>{{ user[11] or '无' }}</td>
         <td>
-          <select class="form-select form-select-sm block-status-select" data-userid="{{ user[0] }}">
-            <option value="0" {% if user[10] == 0 %}selected{% endif %}>否</option>
-            <option value="1" {% if user[10] == 1 %}selected{% endif %}>是</option>
+          <select class="form-select form-select-sm block-status" data-user-id="{{ user[0] }}">
+            <option value="0" {% if not user[10] %}selected{% endif %}>否</option>
+            <option value="1" {% if user[10] %}selected{% endif %}>是</option>
           </select>
         </td>
-        <td>{{ user[7] or "未知" }}</td>
-        <td>{{ user[8] or "未知" }}</td>
+        <td>{{ user[7] }}</td>
+        <td>{{ user[8] or '未知' }}</td>
+        <td>
+          <a href="/game_history?user_id={{ user[0] }}" class="btn btn-sm btn-info">查看游戏记录</a>
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="9" class="text-center">无符合条件的用户数据</td></tr>
+      <tr><td colspan="10" class="text-center">无用户数据</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <!-- 分页控件 -->
-  <nav aria-label="分页导航">
-    <ul class="pagination justify-content-center">
+  <nav aria-label="分页导航" class="d-flex justify-content-center">
+    <ul class="pagination">
       <li class="page-item {% if stats.page <= 1 %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page -1 }}&keyword={{ keyword }}&invited_by={{ invited_by_filter }}&phone={{ phone_filter }}&authorized={{ is_authorized }}" aria-label="上一页">
-          &laquo; 上一页
-        </a>
+        <a class="page-link" href="?page={{ stats.page - 1 }}">上一页</a>
       </li>
-      <li class="page-item disabled"><a class="page-link" href="#">第 {{ stats.page }} 页 / 共 {{ stats.total_pages }} 页</a></li>
+      <li class="page-item disabled">
+        <a class="page-link" href="#">{{ stats.page }} / {{ stats.total_pages }}</a>
+      </li>
       <li class="page-item {% if stats.page >= stats.total_pages %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page +1 }}&keyword={{ keyword }}&invited_by={{ invited_by_filter }}&phone={{ phone_filter }}&authorized={{ is_authorized }}" aria-label="下一页">
-          下一页 &raquo;
-        </a>
+        <a class="page-link" href="?page={{ stats.page + 1 }}">下一页</a>
       </li>
     </ul>
   </nav>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-document.querySelectorAll('.block-status-select').forEach(function(select){
-  select.addEventListener('change', function(){
-    const userId = this.dataset.userid;
+document.querySelectorAll('.block-status').forEach(select => {
+  select.addEventListener('change', async function() {
+    const userId = this.getAttribute('data-user-id');
     const isBlocked = this.value;
-    fetch('/update_block_status', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({user_id: userId, is_blocked: isBlocked})
-    })
-    .then(resp => resp.json())
-    .then(data => {
-      if(data.success){
-        alert('封禁状态更新成功');
-      } else {
-        alert('更新失败，请稍后重试');
-      }
-    })
-    .catch(() => alert('网络错误'));
+    try {
+      const res = await fetch('/update_block_status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ user_id: userId, is_blocked: isBlocked })
+      });
+      if (!res.ok) throw new Error('更新失败');
+      alert('封禁状态已更新');
+    } catch (e) {
+      alert('更新封禁状态失败');
+    }
   });
 });
 </script>
-
 </body>
 </html>
