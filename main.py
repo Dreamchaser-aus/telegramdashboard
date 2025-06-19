@@ -76,14 +76,14 @@ def dashboard():
     conn.close()
     return render_template("dashboard.html", users=users)
 
-# === Telegram Bot 部分 ===
+# === Telegram Bot ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🎲 欢迎来到骰子游戏！发送 /play 开始掷骰子～")
 
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_dice("🎲")
 
-async def start_bot():
+async def run_bot():
     init_db()
     application = ApplicationBuilder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
@@ -95,9 +95,10 @@ async def start_bot():
 def run_flask():
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
 
-def run_bot_thread():
-    asyncio.run(start_bot())  # 在独立线程中运行事件循环，不会冲突
-
+# === 启动入口 ===
 if __name__ == "__main__":
+    # 先启动 Flask 子线程
     Thread(target=run_flask).start()
-    Thread(target=run_bot_thread).start()
+
+    # Bot 在主线程中运行（支持信号处理器）
+    asyncio.run(run_bot())
