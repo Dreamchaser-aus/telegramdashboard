@@ -28,10 +28,8 @@ logging.basicConfig(level=logging.INFO)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-
 def get_conn():
     return psycopg2.connect(DATABASE_URL)
-
 
 def init_db():
     conn = get_conn()
@@ -55,13 +53,11 @@ def init_db():
     conn.commit()
     conn.close()
 
-
 @app.route("/")
 def dashboard():
     keyword = request.args.get("keyword", "")
     conn = get_conn()
     c = conn.cursor()
-
     if keyword:
         c.execute("""
             SELECT u.*, i.username
@@ -90,7 +86,6 @@ def dashboard():
     blocked_users = c.fetchone()[0]
     c.execute("SELECT SUM(points) FROM users")
     total_points = c.fetchone()[0] or 0
-
     conn.close()
 
     stats = {
@@ -101,7 +96,6 @@ def dashboard():
     }
 
     return render_template("dashboard.html", users=users, stats=stats, total_rank=total_rank, today_rank=today_rank)
-
 
 @app.route("/update_user", methods=["POST"])
 def update_user():
@@ -117,7 +111,6 @@ def update_user():
     conn.close()
     return "OK"
 
-
 @app.route("/delete_user", methods=["POST"])
 def delete_user():
     user_id = request.form["user_id"]
@@ -128,8 +121,6 @@ def delete_user():
     conn.close()
     return "OK"
 
-
-# Telegram Bot Functions
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     inviter_id = int(context.args[0]) if context.args else None
@@ -151,7 +142,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text("⚠️ 为参与群组游戏，请先授权手机号：", reply_markup=keyboard)
 
-
 async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     phone = update.message.contact.phone_number
@@ -164,7 +154,6 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🎲 开始游戏", callback_data="start_game")]])
     await update.message.reply_text("✅ 手机号授权成功！点击按钮开始游戏吧～", reply_markup=keyboard)
     await reward_inviter(user.id, context)
-
 
 async def reward_inviter(user_id, context):
     conn = get_conn()
@@ -182,7 +171,6 @@ async def reward_inviter(user_id, context):
             except:
                 pass
     conn.close()
-
 
 async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -222,7 +210,6 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     msg += f" 当前总积分：{total}"
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🎲 再来一次", callback_data="start_game")]])
     await context.bot.send_message(chat_id=query.message.chat_id, text=msg, reply_markup=keyboard)
-
 
 async def handle_group_dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -265,7 +252,6 @@ async def handle_group_dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg += f" 当前总积分：{total}"
     await update.message.reply_text(msg)
 
-
 async def show_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today = date.today().isoformat()
     conn = get_conn()
@@ -283,13 +269,11 @@ async def show_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += f"{medals[i]} {name[:4]}*** - {row[2]} 分\n"
     await update.message.reply_text(msg)
 
-
 async def share(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     bot_name = (await context.bot.get_me()).username
     link = f"https://t.me/{bot_name}?start={user.id}"
     await update.message.reply_text(f"🔗 你的邀请链接：\n{link}\n\n🎁 邀请成功即可获得 +10 积分奖励！")
-
 
 async def handle_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_member = update.chat_member
@@ -308,18 +292,16 @@ async def handle_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn.commit()
         conn.close()
 
-
 async def run_telegram_bot():
     app_ = ApplicationBuilder().token(BOT_TOKEN).build()
     app_.add_handler(CommandHandler("start", start))
     app_.add_handler(CommandHandler("rank", show_rank))
     app_.add_handler(CommandHandler("share", share))
     app_.add_handler(MessageHandler(filters.CONTACT, contact_handler))
-    app_.add_handler(MessageHandler(filters.DICE & filters.ChatType.GROUPS, handle_group_dice))
+    app_.add_handler(MessageHandler(filters.Dice.DICE & filters.ChatType.GROUPS, handle_group_dice))  # ✅ 修复点
     app_.add_handler(CallbackQueryHandler(start_game_callback, pattern="^start_game$"))
     app_.add_handler(ChatMemberHandler(handle_new_member, ChatMemberHandler.CHAT_MEMBER))
     await app_.run_polling(close_loop=False)
-
 
 def reset_daily():
     conn = get_conn()
@@ -329,7 +311,6 @@ def reset_daily():
     conn.close()
     print("🔄 已重置每日次数")
 
-
 async def main():
     init_db()
     scheduler = BackgroundScheduler()
@@ -338,7 +319,6 @@ async def main():
     config = Config()
     config.bind = ["0.0.0.0:8080"]
     await asyncio.gather(serve(app, config), run_telegram_bot())
-
 
 if __name__ == "__main__":
     asyncio.run(main())
