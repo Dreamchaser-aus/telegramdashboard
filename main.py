@@ -123,7 +123,6 @@ def delete_user():
         conn.commit()
     return "OK"
 
-# 玩法说明发送函数，支持中英
 async def send_game_rules(chat_id, bot, language_code='zh'):
     if language_code and language_code.startswith('en'):
         text = (
@@ -149,7 +148,6 @@ async def send_game_rules(chat_id, bot, language_code='zh'):
         )
     await bot.send_message(chat_id=chat_id, text=text)
 
-# 帮助回调按钮处理
 async def help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -202,11 +200,19 @@ async def reward_inviter(user_id, context):
             if row:
                 inviter, phone, rewarded, plays = row
                 if inviter and phone and not rewarded and plays > 0:
-                    c.execute("UPDATE users SET points = points + 10 WHERE user_id = %s", (inviter,))
+                    c.execute("UPDATE users SET points = points + 10 WHERE user_id = %s RETURNING points", (inviter,))
+                    inviter_points = c.fetchone()[0]
                     c.execute("UPDATE users SET inviter_rewarded = 1 WHERE user_id = %s", (user_id,))
                     conn.commit()
                     try:
-                        await context.bot.send_message(chat_id=inviter, text="🎁 你邀请的用户已成功参与游戏，积分 +10！")
+                        await context.bot.send_message(
+                            chat_id=inviter,
+                            text=(
+                                f"🎉 你邀请的用户成功参与游戏，获得 +10 积分奖励！\n"
+                                f"🏆 当前总积分：{inviter_points}\n"
+                                f"继续邀请更多好友，积分越多越精彩！"
+                            )
+                        )
                     except Exception:
                         logging.warning(f"邀请积分通知发送失败，邀请人ID: {inviter}")
     except Exception as e:
@@ -219,20 +225,19 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     with get_conn() as conn, conn.cursor() as c:
         c.execute("SELECT is_blocked, plays, phone FROM users WHERE user_id = %s", (user.id,))
         row = c.fetchone()
-
-        if not row:
-            await query.edit_message_text("⚠️ 你还未授权手机号，请先私聊我发送手机号授权。")
-            return
-        is_blocked, plays, phone = row
-        if is_blocked:
-            await query.edit_message_text("⛔️ 你已被禁止参与互动，请联系管理员。")
-            return
-        if not phone:
-            await query.edit_message_text("📵 请先授权手机号后才能参与游戏！")
-            return
-        if plays >= 10:
-            await query.edit_message_text("❌ 今天已用完10次机会，请明天再来！")
-            return
+    if not row:
+        await query.edit_message_text("⚠️ 你还未授权手机号，请先私聊我发送手机号授权。")
+        return
+    is_blocked, plays, phone = row
+    if is_blocked:
+        await query.edit_message_text("⛔️ 你已被禁止参与互动，请联系管理员。")
+        return
+    if not phone:
+        await query.edit_message_text("📵 请先授权手机号后才能参与游戏！")
+        return
+    if plays >= 10:
+        await query.edit_message_text("❌ 今天已用完10次机会，请明天再来！")
+        return
 
     try:
         await query.delete_message()
@@ -249,9 +254,21 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             total = c.fetchone()[0]
             conn.commit()
 
-        msg = f"🎲 你掷出{dice1.dice.value}，我掷出{dice2.dice.value}！"
-        msg += "赢了！+10积分" if score > 0 else "输了... -5积分" if score < 0 else "平局！"
-        msg += f" 当前总积分：{total}"
+        if score > 0:
+            result_emoji = "🎉🎉🎉"
+            result_text = f"你赢了！+10积分 {result_emoji}"
+        elif score < 0:
+            result_emoji = "😞💔"
+            result_text = f"你输了... -5积分 {result_emoji}"
+        else:
+            result_emoji = "😐"
+            result_text = f"平局！ {result_emoji}"
+
+        msg = (
+            f"🎲 你掷出 {dice1.dice.value}，我掷出 {dice2.dice.value}！\n"
+            f"{result_text}\n"
+            f"📊 当前总积分：{total}"
+        )
 
         help_button = InlineKeyboardMarkup(
             [[InlineKeyboardButton("❓ 玩法说明", callback_data="help_rules")]]
@@ -267,7 +284,6 @@ async def handle_group_dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with get_conn() as conn, conn.cursor() as c:
         c.execute("SELECT is_blocked, plays, phone FROM users WHERE user_id = %s", (user.id,))
         row = c.fetchone()
-
     if not row or not row[2]:
         bot_username = (await context.bot.get_me()).username
         private_link = f"https://t.me/{bot_username}?start={user.id}"
@@ -277,12 +293,10 @@ async def handle_group_dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=keyboard
         )
         return
-
     is_blocked, plays, phone = row
     if is_blocked:
         await update.message.reply_text("⛔️ 你已被禁止参与，请联系管理员。")
         return
-
     if plays >= 10:
         await update.message.reply_text("❌ 今天已用完10次机会，请明天再来！")
         return
@@ -299,9 +313,21 @@ async def handle_group_dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             total = c.fetchone()[0]
             conn.commit()
 
-        msg = f"🎲 你掷出 {user_score}，我掷出 {bot_score}，"
-        msg += "你赢了！+10分" if score > 0 else "你输了～ -5分" if score < 0 else "平局！"
-        msg += f" 当前总积分：{total}"
+        if score > 0:
+            result_emoji = "🎉🎉🎉"
+            result_text = f"你赢了！+10积分 {result_emoji}"
+        elif score < 0:
+            result_emoji = "😞💔"
+            result_text = f"你输了... -5积分 {result_emoji}"
+        else:
+            result_emoji = "😐"
+            result_text = f"平局！ {result_emoji}"
+
+        msg = (
+            f"🎲 你掷出 {user_score}，我掷出 {bot_score}！\n"
+            f"{result_text}\n"
+            f"📊 当前总积分：{total}"
+        )
 
         help_button = InlineKeyboardMarkup(
             [[InlineKeyboardButton("❓ 玩法说明", callback_data="help_rules")]]
@@ -311,12 +337,43 @@ async def handle_group_dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logging.error(f"群组骰子游戏异常: {e}")
         await update.message.reply_text("⚠️ 游戏异常，请稍后重试。")
 
+async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    with get_conn() as conn, conn.cursor() as c:
+        c.execute("""
+            SELECT points, plays, inviter_rewarded
+            FROM users WHERE user_id = %s
+        """, (user.id,))
+        row = c.fetchone()
+    if not row:
+        await update.message.reply_text("⚠️ 你还未注册，请先发送 /start")
+        return
+    points, plays, invited_rewarded = row
+    msg = (
+        f"👤 用户资料：\n"
+        f"🎯 总积分：{points}\n"
+        f"🎲 今日游戏次数：{plays} / 10\n"
+        f"🎁 邀请奖励已领取：{'是' if invited_rewarded else '否'}\n"
+        f"🔗 发送 /invite 获取邀请链接赚积分！"
+    )
+    await update.message.reply_text(msg)
+
+async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    bot_name = (await context.bot.get_me()).username
+    invite_link = f"https://t.me/{bot_name}?start={user.id}"
+    msg = (
+        f"📢 你的邀请链接：\n"
+        f"{invite_link}\n\n"
+        "邀请好友注册并参与游戏，双方都可获得积分奖励！"
+    )
+    await update.message.reply_text(msg)
+
 async def show_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today = date.today().isoformat()
     with get_conn() as conn, conn.cursor() as c:
         c.execute("SELECT username, first_name, points FROM users WHERE last_play LIKE %s ORDER BY points DESC LIMIT 10", (f"{today}%",))
         rows = c.fetchall()
-
     if not rows:
         await update.message.reply_text("📬 今日暂无玩家积分记录")
         return
@@ -352,6 +409,8 @@ async def run_telegram_bot():
     app_ = ApplicationBuilder().token(BOT_TOKEN).build()
     app_.add_handler(CommandHandler("start", start))
     app_.add_handler(CommandHandler("help", help_command))
+    app_.add_handler(CommandHandler("profile", profile))
+    app_.add_handler(CommandHandler("invite", invite))
     app_.add_handler(CommandHandler("rank", show_rank))
     app_.add_handler(CommandHandler("share", share))
     app_.add_handler(MessageHandler(filters.CONTACT, contact_handler))
