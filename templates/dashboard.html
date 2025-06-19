@@ -73,8 +73,8 @@
         <td>{{ user[4] or "未授权" }}</td>
         <td>{{ user[5] }}</td>
         <td>{{ user[6] }}</td>
-        <td>{{ user[10] or "无" }}</td>
-        <td>{{ user[11] or "否" }}</td>
+        <td>{{ user[11] or "无" }}</td>
+        <td>{{ "是" if user[10] == 1 else "否" }}</td>
         <td>{{ user[7] or "未知" }}</td>
         <td>{{ user[8] or "未知" }}</td>
       </tr>
