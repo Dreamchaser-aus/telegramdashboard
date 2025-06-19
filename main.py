@@ -123,7 +123,38 @@ def delete_user():
         conn.commit()
     return "OK"
 
-# Telegram Bot Handlers
+# 玩法说明发送函数，支持中英
+async def send_game_rules(chat_id, bot, language_code='zh'):
+    if language_code and language_code.startswith('en'):
+        text = (
+            "🎲 Game Rules:\n"
+            "1. Click the button or send a dice to start.\n"
+            "2. You and the bot each roll a dice, higher score wins.\n"
+            "3. Win: +10 points, Lose: -5 points, Tie: no change.\n"
+            "4. You can play up to 10 times per day.\n"
+            "5. Phone number authorization is required.\n"
+            "6. Invite friends to earn bonus points!\n"
+            "Good luck and have fun!"
+        )
+    else:
+        text = (
+            "🎲 游戏玩法说明：\n"
+            "1. 通过点击按钮或发送骰子开始游戏。\n"
+            "2. 你和Bot各掷一次骰子，点数大者获胜。\n"
+            "3. 赢得 +10 积分，输掉 -5 积分，平局不加减。\n"
+            "4. 每天最多可以玩10次。\n"
+            "5. 授权手机号后方可参与游戏。\n"
+            "6. 邀请好友可获得额外积分奖励！\n"
+            "祝你游戏愉快！"
+        )
+    await bot.send_message(chat_id=chat_id, text=text)
+
+# 帮助回调按钮处理
+async def help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_lang = query.from_user.language_code or 'zh'
+    await send_game_rules(query.message.chat_id, context.bot, user_lang)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -146,17 +177,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("ℹ️ 想了解游戏玩法，请发送 /help 查看详细说明。")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    help_text = (
-        "🎲 游戏玩法说明：\n"
-        "1. 通过点击按钮或发送骰子开始游戏。\n"
-        "2. 你和Bot各掷一次骰子，点数大者获胜。\n"
-        "3. 赢得 +10 积分，输掉 -5 积分，平局不加减。\n"
-        "4. 每天最多可以玩10次。\n"
-        "5. 授权手机号后方可参与游戏。\n"
-        "6. 邀请好友可获得额外积分奖励！\n"
-        "祝你游戏愉快！"
-    )
-    await update.message.reply_text(help_text)
+    user_lang = update.effective_user.language_code or 'zh'
+    await send_game_rules(update.message.chat_id, context.bot, user_lang)
 
 async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -221,7 +243,7 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         score = 10 if dice1.dice.value > dice2.dice.value else -5 if dice1.dice.value < dice2.dice.value else 0
 
         with get_conn() as conn, conn.cursor() as c:
-            c.execute("UPDATE users SET points = %s + points, plays = plays + 1, last_play = %s WHERE user_id = %s",
+            c.execute("UPDATE users SET points = points + %s, plays = plays + 1, last_play = %s WHERE user_id = %s",
                       (score, datetime.now().isoformat(), user.id))
             c.execute("SELECT points FROM users WHERE user_id = %s", (user.id,))
             total = c.fetchone()[0]
@@ -230,8 +252,11 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         msg = f"🎲 你掷出{dice1.dice.value}，我掷出{dice2.dice.value}！"
         msg += "赢了！+10积分" if score > 0 else "输了... -5积分" if score < 0 else "平局！"
         msg += f" 当前总积分：{total}"
-        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🎲 再来一次", callback_data="start_game")]])
-        await context.bot.send_message(chat_id=query.message.chat_id, text=msg, reply_markup=keyboard)
+
+        help_button = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("❓ 玩法说明", callback_data="help_rules")]]
+        )
+        await context.bot.send_message(chat_id=query.message.chat_id, text=msg, reply_markup=help_button)
     except Exception as e:
         logging.error(f"游戏开始异常: {e}")
         await query.message.reply_text("⚠️ 游戏出错，请稍后再试。")
@@ -277,7 +302,11 @@ async def handle_group_dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = f"🎲 你掷出 {user_score}，我掷出 {bot_score}，"
         msg += "你赢了！+10分" if score > 0 else "你输了～ -5分" if score < 0 else "平局！"
         msg += f" 当前总积分：{total}"
-        await update.message.reply_text(msg)
+
+        help_button = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("❓ 玩法说明", callback_data="help_rules")]]
+        )
+        await update.message.reply_text(msg, reply_markup=help_button)
     except Exception as e:
         logging.error(f"群组骰子游戏异常: {e}")
         await update.message.reply_text("⚠️ 游戏异常，请稍后重试。")
@@ -322,12 +351,13 @@ async def handle_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def run_telegram_bot():
     app_ = ApplicationBuilder().token(BOT_TOKEN).build()
     app_.add_handler(CommandHandler("start", start))
-    app_.add_handler(CommandHandler("help", help_command))  # 新增 help 命令
+    app_.add_handler(CommandHandler("help", help_command))
     app_.add_handler(CommandHandler("rank", show_rank))
     app_.add_handler(CommandHandler("share", share))
     app_.add_handler(MessageHandler(filters.CONTACT, contact_handler))
     app_.add_handler(MessageHandler(filters.Dice.DICE & filters.ChatType.GROUPS, handle_group_dice))
     app_.add_handler(CallbackQueryHandler(start_game_callback, pattern="^start_game$"))
+    app_.add_handler(CallbackQueryHandler(help_callback, pattern="^help_rules$"))
     app_.add_handler(ChatMemberHandler(handle_new_member, ChatMemberHandler.CHAT_MEMBER))
     await app_.run_polling(close_loop=False)
 
