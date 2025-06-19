@@ -4,7 +4,7 @@ import psycopg2
 import asyncio
 import nest_asyncio
 from datetime import datetime, date
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram import (
     Update, ReplyKeyboardMarkup, KeyboardButton,
@@ -138,7 +138,23 @@ def dashboard():
                            keyword=keyword, invited_by_filter=invited_by_filter, phone_filter=phone_filter,
                            is_authorized=is_authorized)
 
-# --- Telegram Bot 相关代码开始 ---
+@app.route('/update_block_status', methods=['POST'])
+def update_block_status():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    is_blocked = data.get('is_blocked')
+    if user_id is None or is_blocked not in ['0','1']:
+        return jsonify(success=False), 400
+    try:
+        with get_conn() as conn, conn.cursor() as c:
+            c.execute("UPDATE users SET is_blocked = %s WHERE user_id = %s", (int(is_blocked), int(user_id)))
+            conn.commit()
+        return jsonify(success=True)
+    except Exception as e:
+        logging.error(f"更新封禁状态失败: {e}")
+        return jsonify(success=False), 500
+
+# --- Telegram Bot 相关代码 ---
 
 async def send_game_rules(chat_id, bot, language_code='zh'):
     if language_code and language_code.startswith('en'):
