@@ -10,6 +10,7 @@ from telegram.ext import (
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
+from threading import Thread
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -84,20 +85,16 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def run_bot():
     init_db()
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("play", play))
+    app_ = ApplicationBuilder().token(BOT_TOKEN).build()
+    app_.add_handler(CommandHandler("start", start))
+    app_.add_handler(CommandHandler("play", play))
     scheduler = AsyncIOScheduler()
     scheduler.start()
-    await application.initialize()
-    await application.start()
-    await application.run_polling()
+    await app_.run_polling()
 
-async def main():
-    loop = asyncio.get_event_loop()
-    loop.create_task(run_bot())
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-    loop.run_forever()
+def bot_thread():
+    asyncio.run(run_bot())
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    Thread(target=bot_thread).start()        # Bot 子线程运行 asyncio
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))  # Flask 主线程运行
