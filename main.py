@@ -24,7 +24,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 app = Flask(__name__)
 
 def get_conn():
-    print("🔍 DATABASE_URL:", repr(DATABASE_URL))  # 用于调试环境变量是否读取成功
+    print("🔍 DATABASE_URL:", repr(DATABASE_URL))  # 调试用
     return psycopg2.connect(DATABASE_URL)
 
 def init_db():
@@ -84,7 +84,6 @@ def dashboard():
 
 # === Telegram Bot ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
     await update.message.reply_text("🎲 欢迎来到骰子游戏！发送 /play 开始掷骰子～")
 
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -94,7 +93,7 @@ def run_flask():
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
 
 async def run_bot():
-    init_db()  # ✅ 放在这里，避免在 build 阶段执行
+    init_db()
     application = ApplicationBuilder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("play", play))
@@ -102,8 +101,7 @@ async def run_bot():
     scheduler.start()
     await application.initialize()
     await application.start()
-    await application.updater.start_polling()
-    await application.updater.idle()
+    await application.run_polling()  # ✅ 替换 idle()
 
 if __name__ == "__main__":
     flask_thread = Thread(target=run_flask)
