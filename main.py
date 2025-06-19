@@ -4,10 +4,9 @@ import logging
 import psycopg2
 from datetime import datetime, date
 from flask import Flask, render_template, request
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler,
-    CallbackQueryHandler, ContextTypes, filters
+    ApplicationBuilder, CommandHandler, ContextTypes
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from threading import Thread
@@ -24,7 +23,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 app = Flask(__name__)
 
 def get_conn():
-    print("🔍 DATABASE_URL:", repr(DATABASE_URL))  # 调试用
+    print("🔍 DATABASE_URL:", repr(DATABASE_URL))  # 调试
     return psycopg2.connect(DATABASE_URL)
 
 def init_db():
@@ -101,7 +100,7 @@ async def run_bot():
     scheduler.start()
     await application.initialize()
     await application.start()
-    await application.run_polling()  # ✅ 替换 idle()
+    await application.run_polling()  # ✅ 使用 run_polling 替代 .updater.idle()
 
 if __name__ == "__main__":
     flask_thread = Thread(target=run_flask)
