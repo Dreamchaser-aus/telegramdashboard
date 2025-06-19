@@ -1,5 +1,6 @@
 flask
-python-telegram-bot
-apscheduler
-psycopg2-binary
+python-telegram-bot==20.3
 python-dotenv
+psycopg2-binary
+hypercorn
+apscheduler
