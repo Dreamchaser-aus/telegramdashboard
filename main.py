@@ -8,6 +8,8 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
+from hypercorn.asyncio import serve
+from hypercorn.config import Config
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -78,26 +80,26 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_dice()
 
-async def run_telegram_bot():
+async def main():
     init_db()
+
+    # Step 1: 创建 Telegram Application
     app_ = ApplicationBuilder().token(BOT_TOKEN).build()
     app_.add_handler(CommandHandler("start", start))
     app_.add_handler(CommandHandler("play", play))
+
     scheduler = AsyncIOScheduler()
     scheduler.start()
-    await app_.run_polling(close_loop=False)
 
-async def run_flask():
-    from hypercorn.asyncio import serve
-    from hypercorn.config import Config
+    # Step 2: 初始化 bot（但不 run_polling）
+    await app_.initialize()
+    await app_.start()
+    await app_.updater.start_polling()
+
+    # Step 3: 启动 Flask 使用 Hypercorn
     config = Config()
     config.bind = ["0.0.0.0:8080"]
     await serve(app, config)
-
-async def main():
-    bot_task = asyncio.create_task(run_telegram_bot())
-    flask_task = asyncio.create_task(run_flask())
-    await asyncio.gather(bot_task, flask_task)
 
 if __name__ == "__main__":
     asyncio.run(main())
