@@ -24,6 +24,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 app = Flask(__name__)
 
 def get_conn():
+    print("🔍 DATABASE_URL:", repr(DATABASE_URL))  # 用于调试环境变量是否读取成功
     return psycopg2.connect(DATABASE_URL)
 
 def init_db():
@@ -93,6 +94,7 @@ def run_flask():
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
 
 async def run_bot():
+    init_db()  # ✅ 放在这里，避免在 build 阶段执行
     application = ApplicationBuilder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("play", play))
@@ -104,7 +106,6 @@ async def run_bot():
     await application.updater.idle()
 
 if __name__ == "__main__":
-    init_db()  # 🚀 自动创建数据库表
     flask_thread = Thread(target=run_flask)
     flask_thread.start()
     asyncio.run(run_bot())
