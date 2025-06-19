@@ -23,7 +23,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 app = Flask(__name__)
 
 def get_conn():
-    print("🔍 DATABASE_URL:", repr(DATABASE_URL))  # 调试
+    print("🔍 DATABASE_URL:", repr(DATABASE_URL))  # 调试用
     return psycopg2.connect(DATABASE_URL)
 
 def init_db():
@@ -100,9 +100,10 @@ async def run_bot():
     scheduler.start()
     await application.initialize()
     await application.start()
-    await application.run_polling()  # ✅ 使用 run_polling 替代 .updater.idle()
+    await application.run_polling()  # ✅ 新写法兼容 python-telegram-bot v20+
 
 if __name__ == "__main__":
     flask_thread = Thread(target=run_flask)
     flask_thread.start()
-    asyncio.run(run_bot())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(run_bot())  # ✅ 替换 asyncio.run() 避免 RuntimeError
