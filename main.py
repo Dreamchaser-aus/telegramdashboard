@@ -28,7 +28,6 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 def get_conn():
-    # 建议捕获异常并重试或日志
     return psycopg2.connect(DATABASE_URL)
 
 def init_db():
@@ -144,6 +143,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         resize_keyboard=True, one_time_keyboard=True
     )
     await update.message.reply_text("⚠️ 为参与群组游戏，请先授权手机号：", reply_markup=keyboard)
+    await update.message.reply_text("ℹ️ 想了解游戏玩法，请发送 /help 查看详细说明。")
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    help_text = (
+        "🎲 游戏玩法说明：\n"
+        "1. 通过点击按钮或发送骰子开始游戏。\n"
+        "2. 你和Bot各掷一次骰子，点数大者获胜。\n"
+        "3. 赢得 +10 积分，输掉 -5 积分，平局不加减。\n"
+        "4. 每天最多可以玩10次。\n"
+        "5. 授权手机号后方可参与游戏。\n"
+        "6. 邀请好友可获得额外积分奖励！\n"
+        "祝你游戏愉快！"
+    )
+    await update.message.reply_text(help_text)
 
 async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -199,7 +212,6 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             await query.edit_message_text("❌ 今天已用完10次机会，请明天再来！")
             return
 
-    # 删除原消息，开始游戏
     try:
         await query.delete_message()
         dice1 = await context.bot.send_dice(chat_id=query.message.chat_id)
@@ -209,7 +221,7 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         score = 10 if dice1.dice.value > dice2.dice.value else -5 if dice1.dice.value < dice2.dice.value else 0
 
         with get_conn() as conn, conn.cursor() as c:
-            c.execute("UPDATE users SET points = points + %s, plays = plays + 1, last_play = %s WHERE user_id = %s",
+            c.execute("UPDATE users SET points = %s + points, plays = plays + 1, last_play = %s WHERE user_id = %s",
                       (score, datetime.now().isoformat(), user.id))
             c.execute("SELECT points FROM users WHERE user_id = %s", (user.id,))
             total = c.fetchone()[0]
@@ -310,6 +322,7 @@ async def handle_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def run_telegram_bot():
     app_ = ApplicationBuilder().token(BOT_TOKEN).build()
     app_.add_handler(CommandHandler("start", start))
+    app_.add_handler(CommandHandler("help", help_command))  # 新增 help 命令
     app_.add_handler(CommandHandler("rank", show_rank))
     app_.add_handler(CommandHandler("share", share))
     app_.add_handler(MessageHandler(filters.CONTACT, contact_handler))
