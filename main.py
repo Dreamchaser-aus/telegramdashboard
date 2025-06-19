@@ -190,7 +190,7 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🎲 开始游戏", callback_data="start_game")]])
     await update.message.reply_text("✅ 手机号授权成功！点击按钮开始游戏吧～", reply_markup=keyboard)
-    await reward_inviter(user.id, context)
+    await reward_inviter(user.id, context)  # 授权成功后触发奖励检测
 
 async def reward_inviter(user_id, context):
     try:
@@ -199,6 +199,7 @@ async def reward_inviter(user_id, context):
             row = c.fetchone()
             if row:
                 inviter, phone, rewarded, plays = row
+                logging.info(f"奖励检测: inviter={inviter}, phone={phone}, rewarded={rewarded}, plays={plays}")
                 if inviter and phone and not rewarded and plays > 0:
                     c.execute("UPDATE users SET points = points + 10 WHERE user_id = %s RETURNING points", (inviter,))
                     inviter_points = c.fetchone()[0]
@@ -213,8 +214,8 @@ async def reward_inviter(user_id, context):
                                 f"继续邀请更多好友，积分越多越精彩！"
                             )
                         )
-                    except Exception:
-                        logging.warning(f"邀请积分通知发送失败，邀请人ID: {inviter}")
+                    except Exception as e:
+                        logging.warning(f"邀请积分通知发送失败，邀请人ID: {inviter}, 错误: {e}")
     except Exception as e:
         logging.error(f"奖励邀请者失败: {e}")
 
@@ -253,6 +254,9 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             c.execute("SELECT points FROM users WHERE user_id = %s", (user.id,))
             total = c.fetchone()[0]
             conn.commit()
+
+        # 游戏成功后触发奖励检测，补充调用
+        await reward_inviter(user.id, context)
 
         if score > 0:
             result_emoji = "🎉🎉🎉"
@@ -312,6 +316,9 @@ async def handle_group_dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             c.execute("SELECT points FROM users WHERE user_id = %s", (user.id,))
             total = c.fetchone()[0]
             conn.commit()
+
+        # 同样这里也触发奖励检测
+        await reward_inviter(user.id, context)
 
         if score > 0:
             result_emoji = "🎉🎉🎉"
