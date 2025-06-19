@@ -1,0 +1,10 @@
+flask
+python-telegram-bot==20.0
+sqlalchemy
+pandas
+psycopg2-binary
+nest_asyncio
+apscheduler
+
+psycopg2-binary
+python-dotenv

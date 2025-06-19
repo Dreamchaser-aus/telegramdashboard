@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Telegram Dice Bot 用户后台</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body {
+      background: #f8f9fa;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    .main-container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.05);
+      padding: 2rem;
+      max-width: 96%;
+      margin: auto;
+    }
+    .stats-card {
+      border-radius: 10px;
+      box-shadow: 0 0 12px rgba(0,0,0,0.05);
+      padding: 1rem;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+    .table td, .table th {
+      vertical-align: middle;
+      font-size: 14px;
+    }
+    .section-title {
+      font-weight: bold;
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+      color: #333;
+    }
+    #historyModal .modal-dialog {
+      max-width: 600px;
+    }
+    #historyTable td, #historyTable th {
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="main-container">
+    <h4 class="text-center mb-4">🎲 Telegram Dice Bot 用户后台管理</h4>
+
+    <!-- 统计卡片 -->
+    <div class="row text-center mb-4">
+      <div class="col-md-3"><div class="stats-card bg-light">总用户<br><span class="fs-4 text-primary">{{ stats.total_users }}</span></div></div>
+      <div class="col-md-3"><div class="stats-card bg-light">手机号授权<br><span class="fs-4 text-success">{{ stats.authorized_users }}</span></div></div>
+      <div class="col-md-3"><div class="stats-card bg-light">封禁用户<br><span class="fs-4 text-danger">{{ stats.blocked_users }}</span></div></div>
+      <div class="col-md-3"><div class="stats-card bg-light">总积分<br><span class="fs-4 text-warning">{{ stats.total_points }}</span></div></div>
+    </div>
+
+    <!-- 总积分排行榜 -->
+    <h5 class="section-title">🏆 总积分排行榜 (Top 10)</h5>
+    <div class="table-responsive d-flex justify-content-center">
+      <table class="table table-bordered w-auto">
+        <thead class="table-light">
+          <tr><th>名次</th><th>用户名</th><th>积分</th></tr>
+        </thead>
+        <tbody>
+          {% for row in total_rank %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ (row[0][:4] + '***') if row[0] else ((row[1][:4] + '***') if row[1] else '匿名') }}</td>
+            <td>{{ row[2] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 今日排行榜 -->
+    <h5 class="section-title">📅 今日排行榜</h5>
+    <div class="table-responsive d-flex justify-content-center">
+      <table class="table table-bordered w-auto">
+        <thead class="table-light">
+          <tr><th>名次</th><th>用户名</th><th>积分</th></tr>
+        </thead>
+        <tbody>
+          {% for row in today_rank %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ (row[0][:4] + '***') if row[0] else ((row[1][:4] + '***') if row[1] else '匿名') }}</td>
+            <td>{{ row[2] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 用户数据管理表 -->
+    <h5 class="section-title">📋 用户管理</h5>
+    <div class="table-responsive d-flex justify-content-center">
+      <table id="userTable" class="table table-striped table-bordered align-middle w-auto">
+        <thead>
+          <tr>
+            <th>ID</th><th>用户名</th><th>手机号</th><th>积分</th><th>今日次数</th>
+            <th>邀请人</th><th>奖励</th><th>封禁</th><th>注册时间</th><th>最后游戏</th><th>操作</th><th>历史</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr class="{{ 'table-danger' if u[11] == 1 else '' }}">
+            <td>{{ u[0] }}</td>
+            <td>{{ u[3] or u[1] or u[2] or '无名氏' }}</td>
+            <td>{{ u[4] if u[4] else '未授权' }}</td>
+            <td><input type="number" class="form-control form-control-sm" value="{{ u[5] or 0 }}" id="points-{{ u[0] }}"></td>
+            <td><input type="number" class="form-control form-control-sm" value="{{ u[6] or 0 }}" id="plays-{{ u[0] }}"></td>
+            <td>{{ u[12] or '无' }}</td>
+            <td>{{ '✅' if u[10] else '❌' }}</td>
+            <td>
+              <select id="block-{{ u[0] }}" class="form-select form-select-sm">
+                <option value="0" {% if not u[11] %}selected{% endif %}>否</option>
+                <option value="1" {% if u[11] %}selected{% endif %}>是</option>
+              </select>
+            </td>
+            <td>{{ u[7][:19].replace('T',' ') if u[7] else '—' }}</td>
+            <td>{{ u[8][:19].replace('T',' ') if u[8] else '—' }}</td>
+            <td>
+              <button class="btn btn-sm btn-success mb-1" onclick="updateUser('{{ u[0] }}')">保存</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteUser('{{ u[0] }}')">删除</button>
+            </td>
+            <td>
+              <button class="btn btn-sm btn-info" onclick="showHistory('{{ u[0] }}')">查看</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 游戏历史弹窗 -->
+  <div class="modal fade" id="historyModal" tabindex="-1" aria-labelledby="historyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="historyModalLabel">游戏历史记录</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+        </div>
+        <div class="modal-body">
+          <table class="table table-bordered" id="historyTable">
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>游戏类型</th>
+                <th>结果</th>
+                <th>积分变动</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody">
+              <!-- 动态加载 -->
+            </tbody>
+          </table>
+          <nav>
+            <ul class="pagination justify-content-center" id="historyPagination"></ul>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  function updateUser(id) {
+    const points = document.getElementById('points-' + id).value;
+    const plays = document.getElementById('plays-' + id).value;
+    const block = document.getElementById('block-' + id).value;
+    $.post('/update_user', {
+      user_id: id,
+      points: points,
+      plays: plays,
+      is_blocked: block
+    }, () => location.reload());
+  }
+  function deleteUser(id) {
+    if(confirm('确认要删除该用户？')){
+      $.post('/delete_user', { user_id: id }, () => location.reload());
+    }
+  }
+
+  let currentHistoryPage = 1;
+  let currentUserId = null;
+
+  function showHistory(userId, page=1) {
+    currentUserId = userId;
+    currentHistoryPage = page;
+    $('#historyModal').modal('show');
+    loadHistory();
+  }
+
+  function loadHistory() {
+    $('#historyBody').html('<tr><td colspan="4" class="text-center">加载中...</td></tr>');
+    $('#historyPagination').html('');
+    $.getJSON(`/game_history/${currentUserId}?page=${currentHistoryPage}`, function(data){
+      if(data.records.length === 0){
+        $('#historyBody').html('<tr><td colspan="4" class="text-center">无游戏记录</td></tr>');
+        return;
+      }
+      let rows = '';
+      data.records.forEach(r => {
+        rows += `<tr>
+          <td>${r.timestamp.replace('T',' ').substring(0,19)}</td>
+          <td>${r.game_type}</td>
+          <td>${r.result}</td>
+          <td>${r.points_change}</td>
+        </tr>`;
+      });
+      $('#historyBody').html(rows);
+
+      // 分页
+      const totalPages = Math.ceil(data.total / data.per_page);
+      let pagHtml = '';
+      for(let i=1; i<=totalPages; i++){
+        pagHtml += `<li class="page-item ${i === currentHistoryPage ? 'active' : ''}">
+          <a href="#" class="page-link" onclick="showHistory('${currentUserId}', ${i});return false;">${i}</a>
+        </li>`;
+      }
+      $('#historyPagination').html(pagHtml);
+    });
+  }
+</script>
+</body>
+</html>
