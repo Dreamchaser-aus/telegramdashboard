@@ -1,4 +1,3 @@
-# 完整整合版 main.py
 import os
 import logging
 import psycopg2
@@ -29,8 +28,10 @@ logging.basicConfig(level=logging.INFO)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+
 def get_conn():
     return psycopg2.connect(DATABASE_URL)
+
 
 def init_db():
     conn = get_conn()
@@ -54,11 +55,13 @@ def init_db():
     conn.commit()
     conn.close()
 
+
 @app.route("/")
 def dashboard():
     keyword = request.args.get("keyword", "")
     conn = get_conn()
     c = conn.cursor()
+
     if keyword:
         c.execute("""
             SELECT u.*, i.username
@@ -87,6 +90,7 @@ def dashboard():
     blocked_users = c.fetchone()[0]
     c.execute("SELECT SUM(points) FROM users")
     total_points = c.fetchone()[0] or 0
+
     conn.close()
 
     stats = {
@@ -97,6 +101,7 @@ def dashboard():
     }
 
     return render_template("dashboard.html", users=users, stats=stats, total_rank=total_rank, today_rank=today_rank)
+
 
 @app.route("/update_user", methods=["POST"])
 def update_user():
@@ -112,6 +117,7 @@ def update_user():
     conn.close()
     return "OK"
 
+
 @app.route("/delete_user", methods=["POST"])
 def delete_user():
     user_id = request.form["user_id"]
@@ -122,7 +128,8 @@ def delete_user():
     conn.close()
     return "OK"
 
-# Telegram 逻辑
+
+# Telegram Bot Functions
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     inviter_id = int(context.args[0]) if context.args else None
@@ -138,8 +145,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.commit()
     conn.close()
 
-    keyboard = ReplyKeyboardMarkup([[KeyboardButton("\ud83d\udcf1 分享手机号", request_contact=True)]], resize_keyboard=True, one_time_keyboard=True)
-    await update.message.reply_text("\u26a0\ufe0f 为参与群组游戏，请先授权手机号：", reply_markup=keyboard)
+    keyboard = ReplyKeyboardMarkup(
+        [[KeyboardButton("📱 分享手机号", request_contact=True)]],
+        resize_keyboard=True, one_time_keyboard=True
+    )
+    await update.message.reply_text("⚠️ 为参与群组游戏，请先授权手机号：", reply_markup=keyboard)
+
 
 async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -150,9 +161,10 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.commit()
     conn.close()
 
-    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("\ud83c\udfb2 开始游戏", callback_data="start_game")]])
-    await update.message.reply_text("\u2705 手机号授权成功！点击按钮开始游戏吧～", reply_markup=keyboard)
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🎲 开始游戏", callback_data="start_game")]])
+    await update.message.reply_text("✅ 手机号授权成功！点击按钮开始游戏吧～", reply_markup=keyboard)
     await reward_inviter(user.id, context)
+
 
 async def reward_inviter(user_id, context):
     conn = get_conn()
@@ -166,10 +178,11 @@ async def reward_inviter(user_id, context):
             c.execute("UPDATE users SET inviter_rewarded = 1 WHERE user_id = %s", (user_id,))
             conn.commit()
             try:
-                context.bot.send_message(chat_id=inviter, text="\ud83c\udff1 你邀请的用户已成功参与游戏，积分 +10！")
+                context.bot.send_message(chat_id=inviter, text="🎁 你邀请的用户已成功参与游戏，积分 +10！")
             except:
                 pass
     conn.close()
+
 
 async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -180,17 +193,17 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     c.execute("SELECT is_blocked, plays, phone FROM users WHERE user_id = %s", (user.id,))
     row = c.fetchone()
     if not row:
-        await query.edit_message_text("\u26a0\ufe0f 你还未授权手机号，请先私聊我发送手机号授权。")
+        await query.edit_message_text("⚠️ 你还未授权手机号，请先私聊我发送手机号授权。")
         return
     is_blocked, plays, phone = row
     if is_blocked:
-        await query.edit_message_text("\u26d4️ 你已被禁止参与，请联系管理员。")
+        await query.edit_message_text("⛔️ 你已被禁止参与互动，请联系管理员。")
         return
     if not phone:
-        await query.edit_message_text("\ud83d\udcf5 请先授权手机号后参与游戏！")
+        await query.edit_message_text("📵 请先授权手机号后才能参与游戏！")
         return
     if plays >= 10:
-        await query.edit_message_text("\u274c 今天已用完10次，请明天再来！")
+        await query.edit_message_text("❌ 今天已用完10次机会，请明天再来！")
         return
     await query.delete_message()
     dice1 = await context.bot.send_dice(chat_id=query.message.chat_id)
@@ -204,11 +217,54 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     total = c.fetchone()[0]
     conn.commit()
     conn.close()
-    msg = f"\ud83c\udfb2 你掲出{dice1.dice.value}，我掲出{dice2.dice.value}！"
-    msg += "本局赢了！+10积分" if score > 0 else "输了... -5积分" if score < 0 else "平局！"
+    msg = f"🎲 你掷出{dice1.dice.value}，我掷出{dice2.dice.value}！"
+    msg += "赢了！+10积分" if score > 0 else "输了... -5积分" if score < 0 else "平局！"
     msg += f" 当前总积分：{total}"
-    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("\ud83c\udfb2 再来一次", callback_data="start_game")]])
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🎲 再来一次", callback_data="start_game")]])
     await context.bot.send_message(chat_id=query.message.chat_id, text=msg, reply_markup=keyboard)
+
+
+async def handle_group_dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    dice = update.message.dice
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT is_blocked, plays, phone FROM users WHERE user_id = %s", (user.id,))
+    row = c.fetchone()
+    if not row:
+        await update.message.reply_text("⚠️ 你尚未授权手机号，请先私聊我发送手机号授权。")
+        conn.close()
+        return
+    is_blocked, plays, phone = row
+    if is_blocked:
+        await update.message.reply_text("⛔️ 你已被禁止参与，请联系管理员。")
+        conn.close()
+        return
+    if not phone:
+        await update.message.reply_text("📵 请先私聊我授权手机号后才能参与游戏！")
+        conn.close()
+        return
+    if plays >= 10:
+        await update.message.reply_text("❌ 今天已用完10次机会，请明天再来！")
+        conn.close()
+        return
+
+    bot_msg = await update.message.reply_dice()
+    await asyncio.sleep(3)
+    user_score, bot_score = dice.value, bot_msg.dice.value
+    score = 10 if user_score > bot_score else -5 if user_score < bot_score else 0
+    c.execute("UPDATE users SET points = points + %s, plays = plays + 1, last_play = %s WHERE user_id = %s",
+              (score, datetime.now().isoformat(), user.id))
+    c.execute("SELECT points FROM users WHERE user_id = %s", (user.id,))
+    total = c.fetchone()[0]
+    conn.commit()
+    conn.close()
+
+    msg = f"🎲 你掷出 {user_score}，我掷出 {bot_score}，"
+    msg += "你赢了！+10分" if score > 0 else "你输了～ -5分" if score < 0 else "平局！"
+    msg += f" 当前总积分：{total}"
+    await update.message.reply_text(msg)
+
 
 async def show_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today = date.today().isoformat()
@@ -218,38 +274,22 @@ async def show_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rows = c.fetchall()
     conn.close()
     if not rows:
-        await update.message.reply_text("\ud83d\udcec 今日暂无玩家积分记录")
+        await update.message.reply_text("📬 今日暂无玩家积分记录")
         return
-    msg = "\ud83d\udcca 今日排行榜\uff1a\n"
-    medals = ["\ud83e\udd47", "\ud83e\udd48", "\ud83e\udd49"] + ["\ud83c\udfc6"] * 7
+    msg = "📊 今日排行榜：\n"
+    medals = ["🥇", "🥈", "🥉"] + ["🎖"] * 7
     for i, row in enumerate(rows):
         name = row[0] or row[1] or "匿名"
         msg += f"{medals[i]} {name[:4]}*** - {row[2]} 分\n"
     await update.message.reply_text(msg)
 
+
 async def share(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     bot_name = (await context.bot.get_me()).username
     link = f"https://t.me/{bot_name}?start={user.id}"
-    await update.message.reply_text(f"\ud83d\udd17 你的邀请链接\uff1a\n{link}\n\n\ud83c\udff1 邀请成功即可获得 +10 积分奖励！")
+    await update.message.reply_text(f"🔗 你的邀请链接：\n{link}\n\n🎁 邀请成功即可获得 +10 积分奖励！")
 
-async def group_text_filter(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute("SELECT phone FROM users WHERE user_id = %s", (user.id,))
-    row = c.fetchone()
-    if not row or not row[0]:
-        await update.message.reply_text(f"\u26a0\ufe0f @{user.username or user.first_name} 请先授权手机号后才能参与游戏！")
-    conn.close()
-
-async def message_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message and update.message.dice:
-        await start_game_callback(update, context)
-    elif update.message.contact:
-        await contact_handler(update, context)
-    elif update.message.text and update.message.chat.type in ['group', 'supergroup']:
-        await group_text_filter(update, context)
 
 async def handle_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_member = update.chat_member
@@ -268,15 +308,18 @@ async def handle_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn.commit()
         conn.close()
 
+
 async def run_telegram_bot():
     app_ = ApplicationBuilder().token(BOT_TOKEN).build()
     app_.add_handler(CommandHandler("start", start))
     app_.add_handler(CommandHandler("rank", show_rank))
     app_.add_handler(CommandHandler("share", share))
-    app_.add_handler(MessageHandler(filters.ALL, message_router))
+    app_.add_handler(MessageHandler(filters.CONTACT, contact_handler))
+    app_.add_handler(MessageHandler(filters.DICE & filters.ChatType.GROUPS, handle_group_dice))
     app_.add_handler(CallbackQueryHandler(start_game_callback, pattern="^start_game$"))
     app_.add_handler(ChatMemberHandler(handle_new_member, ChatMemberHandler.CHAT_MEMBER))
     await app_.run_polling(close_loop=False)
+
 
 def reset_daily():
     conn = get_conn()
@@ -284,7 +327,8 @@ def reset_daily():
     c.execute("UPDATE users SET plays = 0")
     conn.commit()
     conn.close()
-    print("\ud83d\udd04 已重置每日次数")
+    print("🔄 已重置每日次数")
+
 
 async def main():
     init_db()
@@ -294,6 +338,7 @@ async def main():
     config = Config()
     config.bind = ["0.0.0.0:8080"]
     await asyncio.gather(serve(app, config), run_telegram_bot())
+
 
 if __name__ == "__main__":
     asyncio.run(main())
