@@ -218,19 +218,26 @@ async def handle_group_dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     c = conn.cursor()
     c.execute("SELECT is_blocked, plays, phone FROM users WHERE user_id = %s", (user.id,))
     row = c.fetchone()
-    if not row:
-        await update.message.reply_text("⚠️ 你尚未授权手机号，请先私聊我发送手机号授权。")
+
+    if not row or not row[2]:
+        bot_username = (await context.bot.get_me()).username
+        private_link = f"https://t.me/{bot_username}?start={user.id}"
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔐 点我授权手机号", url=private_link)]
+        ])
+        await update.message.reply_text(
+            f"📵 @{user.username or user.first_name} 请私聊我授权手机号后才能参与游戏！",
+            reply_markup=keyboard
+        )
         conn.close()
         return
+
     is_blocked, plays, phone = row
     if is_blocked:
         await update.message.reply_text("⛔️ 你已被禁止参与，请联系管理员。")
         conn.close()
         return
-    if not phone:
-        await update.message.reply_text("📵 请先私聊我授权手机号后才能参与游戏！")
-        conn.close()
-        return
+
     if plays >= 10:
         await update.message.reply_text("❌ 今天已用完10次机会，请明天再来！")
         conn.close()
@@ -298,7 +305,7 @@ async def run_telegram_bot():
     app_.add_handler(CommandHandler("rank", show_rank))
     app_.add_handler(CommandHandler("share", share))
     app_.add_handler(MessageHandler(filters.CONTACT, contact_handler))
-    app_.add_handler(MessageHandler(filters.Dice.DICE & filters.ChatType.GROUPS, handle_group_dice))  # ✅ 修复点
+    app_.add_handler(MessageHandler(filters.Dice.DICE & filters.ChatType.GROUPS, handle_group_dice))
     app_.add_handler(CallbackQueryHandler(start_game_callback, pattern="^start_game$"))
     app_.add_handler(ChatMemberHandler(handle_new_member, ChatMemberHandler.CHAT_MEMBER))
     await app_.run_polling(close_loop=False)
