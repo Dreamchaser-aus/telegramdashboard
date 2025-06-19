@@ -310,6 +310,59 @@ async def reward_inviter(user_id, context):
     except Exception as e:
         logging.error(f"奖励邀请者失败: {e}")
 
+async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    with get_conn() as conn, conn.cursor() as c:
+        c.execute("""
+            SELECT points, plays, invited_by
+            FROM users WHERE user_id = %s
+        """, (user.id,))
+        row = c.fetchone()
+    if not row:
+        await update.message.reply_text("⚠️ 你还未注册，请先发送 /start")
+        return
+    points, plays, inviter = row
+    msg = (
+        f"👤 用户资料：\n"
+        f"🎯 总积分：{points}\n"
+        f"🎲 今日游戏次数：{plays} / 10\n"
+        f"🔗 邀请人ID：{inviter if inviter else '无'}\n"
+        f"🔗 发送 /invite 获取邀请链接赚积分！"
+    )
+    await update.message.reply_text(msg)
+
+async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    bot_name = (await context.bot.get_me()).username
+    invite_link = f"https://t.me/{bot_name}?start={user.id}"
+    msg = (
+        f"📢 你的邀请链接：\n"
+        f"{invite_link}\n\n"
+        "邀请好友注册并参与游戏，双方都可获得积分奖励！"
+    )
+    await update.message.reply_text(msg)
+
+async def show_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    today = date.today().isoformat()
+    with get_conn() as conn, conn.cursor() as c:
+        c.execute("SELECT username, first_name, points FROM users WHERE last_play LIKE %s ORDER BY points DESC LIMIT 10", (f"{today}%",))
+        rows = c.fetchall()
+    if not rows:
+        await update.message.reply_text("📬 今日暂无玩家积分记录")
+        return
+    msg = "📊 今日排行榜：\n"
+    medals = ["🥇", "🥈", "🥉"] + ["🎖"] * 7
+    for i, row in enumerate(rows):
+        name = row[0] or row[1] or "匿名"
+        msg += f"{medals[i]} {name[:4]}*** - {row[2]} 分\n"
+    await update.message.reply_text(msg)
+
+async def share(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    bot_name = (await context.bot.get_me()).username
+    link = f"https://t.me/{bot_name}?start={user.id}"
+    await update.message.reply_text(f"🔗 你的邀请链接：\n{link}\n\n🎁 邀请成功即可获得 +10 积分奖励！")
+
 async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -378,6 +431,85 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as e:
         logging.error(f"游戏开始异常: {e}")
         await query.message.reply_text("⚠️ 游戏出错，请稍后再试。")
+
+async def handle_group_dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    dice = update.message.dice
+    with get_conn() as conn, conn.cursor() as c:
+        c.execute("SELECT is_blocked, plays, phone FROM users WHERE user_id = %s", (user.id,))
+        row = c.fetchone()
+    if not row or not row[2]:
+        bot_username = (await context.bot.get_me()).username
+        private_link = f"https://t.me/{bot_username}?start={user.id}"
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔐 点我授权手机号", url=private_link)]])
+        await update.message.reply_text(
+            f"📵 @{user.username or user.first_name} 请私聊我授权手机号后才能参与游戏！",
+            reply_markup=keyboard
+        )
+        return
+    is_blocked, plays, phone = row
+    if is_blocked:
+        await update.message.reply_text("⛔️ 你已被禁止参与，请联系管理员。")
+        return
+    if plays >= 10:
+        await update.message.reply_text("❌ 今天已用完10次机会，请明天再来！")
+        return
+
+    try:
+        bot_msg = await update.message.reply_dice()
+        await asyncio.sleep(3)
+        user_score, bot_score = dice.value, bot_msg.dice.value
+        score = 10 if user_score > bot_score else -5 if user_score < bot_score else 0
+        with get_conn() as conn, conn.cursor() as c:
+            c.execute("UPDATE users SET points = points + %s, plays = plays + 1, last_play = %s WHERE user_id = %s",
+                      (score, datetime.now().isoformat(), user.id))
+            c.execute("SELECT points FROM users WHERE user_id = %s", (user.id,))
+            total = c.fetchone()[0]
+            result_str = "win" if score > 0 else "lose" if score < 0 else "draw"
+            c.execute("""
+                INSERT INTO game_history (user_id, play_time, user_score, bot_score, result, points_change)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (user.id, datetime.now(), user_score, bot_score, result_str, score))
+            conn.commit()
+
+        if score > 0:
+            result_emoji = "🎉🎉🎉"
+            result_text = f"你赢了！+10积分 {result_emoji}"
+        elif score < 0:
+            result_emoji = "😞💔"
+            result_text = f"你输了... -5积分 {result_emoji}"
+        else:
+            result_emoji = "😐"
+            result_text = f"平局！ {result_emoji}"
+
+        msg = (
+            f"🎲 你掷出 {user_score}，我掷出 {bot_score}！\n"
+            f"{result_text}\n"
+            f"📊 当前总积分：{total}"
+        )
+
+        help_button = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("❓ 玩法说明", callback_data="help_rules")]]
+        )
+        await update.message.reply_text(msg, reply_markup=help_button)
+    except Exception as e:
+        logging.error(f"群组骰子游戏异常: {e}")
+        await update.message.reply_text("⚠️ 游戏异常，请稍后重试。")
+
+async def handle_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_member = update.chat_member
+    inviter = chat_member.from_user
+    new_user = chat_member.new_chat_member.user
+    if chat_member.old_chat_member.status == "left" and chat_member.new_chat_member.status == "member":
+        if new_user.is_bot or inviter.id == new_user.id:
+            return
+        with get_conn() as conn, conn.cursor() as c:
+            c.execute("SELECT 1 FROM users WHERE user_id = %s", (new_user.id,))
+            if not c.fetchone():
+                now = datetime.now().isoformat()
+                c.execute("INSERT INTO users (user_id, username, invited_by, created_at) VALUES (%s, %s, %s, %s)",
+                          (new_user.id, new_user.username or '', inviter.id, now))
+                conn.commit()
 
 def reset_daily():
     with get_conn() as conn, conn.cursor() as c:
