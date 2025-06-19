@@ -345,7 +345,6 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             c.execute("SELECT points FROM users WHERE user_id = %s", (user.id,))
             total = c.fetchone()[0]
 
-            # 插入游戏记录
             result_str = "win" if score > 0 else "lose" if score < 0 else "draw"
             c.execute("""
                 INSERT INTO game_history (user_id, play_time, user_score, bot_score, result, points_change)
@@ -380,8 +379,6 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         logging.error(f"游戏开始异常: {e}")
         await query.message.reply_text("⚠️ 游戏出错，请稍后再试。")
 
-# 其他命令处理保持不变（如 profile, invite, rank, share, handle_group_dice, handle_new_member 等）
-
 def reset_daily():
     with get_conn() as conn, conn.cursor() as c:
         c.execute("UPDATE users SET plays = 0")
@@ -390,7 +387,6 @@ def reset_daily():
 
 async def run_telegram_bot():
     app_ = ApplicationBuilder().token(BOT_TOKEN).build()
-    # 注册处理器，示例：
     app_.add_handler(CommandHandler("start", start))
     app_.add_handler(CommandHandler("help", help_command))
     app_.add_handler(CommandHandler("profile", profile))
@@ -411,7 +407,9 @@ async def main():
     scheduler.start()
     config = Config()
     config.bind = ["0.0.0.0:8080"]
-    await asyncio.gather(serve(app, config), run_telegram_bot())
+    web_task = asyncio.create_task(serve(app, config))
+    bot_task = asyncio.create_task(run_telegram_bot())
+    await asyncio.gather(web_task, bot_task)
 
 if __name__ == "__main__":
     asyncio.run(main())
