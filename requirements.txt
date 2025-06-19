@@ -1,7 +1,7 @@
-flask
-python-telegram-bot==20.3
+Flask
 python-dotenv
+python-telegram-bot==20.7
 psycopg2-binary
+APScheduler
 hypercorn
-apscheduler
 nest_asyncio
