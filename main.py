@@ -6,8 +6,8 @@ from datetime import datetime, date
 from flask import Flask, render_template, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler,
-    ContextTypes, filters
+    ApplicationBuilder, CommandHandler, MessageHandler,
+    CallbackQueryHandler, ContextTypes, filters
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from threading import Thread
@@ -16,15 +16,50 @@ from dotenv import load_dotenv
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
-# === 环境变量配置 ===
+# === 环境变量 ===
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# === Flask App ===
+# === Flask Web ===
 app = Flask(__name__)
 
 def get_conn():
     return psycopg2.connect(DATABASE_URL)
+
+def init_db():
+    conn = get_conn()
+    c = conn.cursor()
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        user_id BIGINT PRIMARY KEY,
+        first_name TEXT,
+        last_name TEXT,
+        username TEXT,
+        phone TEXT,
+        points INTEGER DEFAULT 0,
+        plays INTEGER DEFAULT 0,
+        created_at TEXT,
+        last_play TEXT,
+        invited_by BIGINT,
+        inviter_rewarded INTEGER DEFAULT 0,
+        is_blocked INTEGER DEFAULT 0
+    );
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS game_history (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT,
+        result TEXT,
+        points_change INTEGER,
+        created_at TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+    );
+    """)
+
+    conn.commit()
+    conn.close()
 
 @app.route("/")
 def dashboard():
@@ -69,6 +104,7 @@ async def run_bot():
     await application.updater.idle()
 
 if __name__ == "__main__":
+    init_db()  # 🚀 自动创建数据库表
     flask_thread = Thread(target=run_flask)
     flask_thread.start()
     asyncio.run(run_bot())
