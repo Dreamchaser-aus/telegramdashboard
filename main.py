@@ -4,7 +4,7 @@ import psycopg2
 import asyncio
 import nest_asyncio
 from datetime import datetime, date
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram import (
     Update, ReplyKeyboardMarkup, KeyboardButton,
@@ -20,9 +20,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 nest_asyncio.apply()
+logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
-logging.basicConfig(level=logging.INFO)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -44,86 +44,73 @@ def init_db():
                 created_at TEXT,
                 last_play TEXT,
                 invited_by BIGINT,
+                inviter_rewarded INTEGER DEFAULT 0,
                 is_blocked INTEGER DEFAULT 0
-            );
-        ''')
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS invite_rewards (
-                invited_user_id BIGINT PRIMARY KEY,
-                inviter_user_id BIGINT NOT NULL,
-                rewarded_at TEXT
             );
         ''')
         c.execute('''
             CREATE TABLE IF NOT EXISTS game_history (
                 id SERIAL PRIMARY KEY,
                 user_id BIGINT NOT NULL,
-                play_time TIMESTAMP NOT NULL,
+                created_at TIMESTAMP NOT NULL,
                 user_score INTEGER,
                 bot_score INTEGER,
                 result TEXT,
                 points_change INTEGER
             );
         ''')
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS invite_rewards (
+                id SERIAL PRIMARY KEY,
+                inviter BIGINT NOT NULL,
+                invitee BIGINT NOT NULL,
+                reward_given BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        ''')
         conn.commit()
 
 @app.route("/")
 def dashboard():
-    keyword = request.args.get("keyword", "").strip()
-    invited_by_filter = request.args.get("invited_by", "").strip()
-    phone_filter = request.args.get("phone", "").strip()
-    is_authorized = request.args.get("authorized", "").strip()
-    page = int(request.args.get("page", 1))
-    per_page = 50
+    keyword = request.args.get("keyword", "")
+    inviter_username = request.args.get("inviter_username", "")
+    phone = request.args.get("phone", "")
+    filter_status = request.args.get("status", "all")
 
-    where_clauses = []
+    conditions = []
     params = []
 
     if keyword:
-        where_clauses.append("(u.username ILIKE %s OR u.phone ILIKE %s)")
+        conditions.append("(username ILIKE %s OR phone ILIKE %s)")
         params.extend([f"%{keyword}%", f"%{keyword}%"])
-    if invited_by_filter:
-        where_clauses.append("i.username ILIKE %s")
-        params.append(f"%{invited_by_filter}%")
-    if phone_filter:
-        where_clauses.append("u.phone ILIKE %s")
-        params.append(f"%{phone_filter}%")
-    if is_authorized == "1":
-        where_clauses.append("u.phone IS NOT NULL")
-    elif is_authorized == "0":
-        where_clauses.append("u.phone IS NULL")
 
-    where_sql = " AND ".join(where_clauses)
-    if where_sql:
-        where_sql = "WHERE " + where_sql
+    if inviter_username:
+        conditions.append("invited_by IN (SELECT user_id FROM users WHERE username ILIKE %s)")
+        params.append(f"%{inviter_username}%")
+
+    if phone:
+        conditions.append("phone ILIKE %s")
+        params.append(f"%{phone}%")
+
+    if filter_status == "blocked":
+        conditions.append("is_blocked = 1")
+    elif filter_status == "unblocked":
+        conditions.append("is_blocked = 0")
+
+    where_sql = "WHERE " + " AND ".join(conditions) if conditions else ""
 
     with get_conn() as conn, conn.cursor() as c:
         c.execute(f"""
-            SELECT COUNT(*)
-            FROM users u LEFT JOIN users i ON u.invited_by = i.user_id
-            {where_sql}
-        """, params)
-        total_count = c.fetchone()[0]
-
-        offset = (page - 1) * per_page
-
-        c.execute(f"""
             SELECT u.user_id, u.first_name, u.last_name, u.username, u.phone, u.points, u.plays,
-                   u.created_at, u.last_play, u.invited_by, u.is_blocked,
+                   u.created_at, u.last_play, u.invited_by, u.inviter_rewarded, u.is_blocked,
                    i.username as inviter_username
-            FROM users u LEFT JOIN users i ON u.invited_by = i.user_id
+            FROM users u
+            LEFT JOIN users i ON u.invited_by = i.user_id
             {where_sql}
             ORDER BY u.created_at DESC
-            LIMIT %s OFFSET %s
-        """, params + [per_page, offset])
+            LIMIT 100
+        """, params)
         users = c.fetchall()
-
-        c.execute("SELECT username, first_name, points FROM users ORDER BY points DESC LIMIT 10")
-        total_rank = c.fetchall()
-
-        today = date.today().isoformat()
-        c.execute("SELECT username, first_name, points FROM users WHERE last_play LIKE %s ORDER BY points DESC LIMIT 10", (f"{today}%",))
-        today_rank = c.fetchall()
 
         c.execute("SELECT COUNT(*) FROM users")
         total_users = c.fetchone()[0]
@@ -138,69 +125,77 @@ def dashboard():
         "total_users": total_users,
         "authorized_users": authorized_users,
         "blocked_users": blocked_users,
-        "total_points": total_points,
-        "total_count": total_count,
-        "page": page,
-        "per_page": per_page,
-        "total_pages": (total_count + per_page - 1) // per_page
+        "total_points": total_points
     }
 
-    return render_template("dashboard.html", users=users, stats=stats, total_rank=total_rank, today_rank=today_rank,
-                           keyword=keyword, invited_by_filter=invited_by_filter, phone_filter=phone_filter,
-                           is_authorized=is_authorized)
+    return render_template("dashboard.html", users=users, stats=stats)
 
-@app.route('/update_block_status', methods=['POST'])
-def update_block_status():
-    data = request.get_json()
-    user_id = data.get('user_id')
-    is_blocked = data.get('is_blocked')
-    if user_id is None or is_blocked not in ['0','1']:
-        return jsonify(success=False), 400
+@app.route("/update_user", methods=["POST"])
+def update_user():
+    user_id = request.form.get("user_id")
     try:
-        with get_conn() as conn, conn.cursor() as c:
-            c.execute("UPDATE users SET is_blocked = %s WHERE user_id = %s", (int(is_blocked), int(user_id)))
-            conn.commit()
-        return jsonify(success=True)
-    except Exception as e:
-        logging.error(f"更新封禁状态失败: {e}")
-        return jsonify(success=False), 500
+        points = int(request.form.get("points", 0))
+        plays = int(request.form.get("plays", 0))
+        is_blocked = int(request.form.get("is_blocked", 0))
+    except ValueError:
+        return "参数错误", 400
+
+    with get_conn() as conn, conn.cursor() as c:
+        c.execute(
+            "UPDATE users SET points = %s, plays = %s, is_blocked = %s WHERE user_id = %s",
+            (points, plays, is_blocked, user_id)
+        )
+        conn.commit()
+    return "OK"
+
+@app.route("/delete_user", methods=["POST"])
+def delete_user():
+    user_id = request.form.get("user_id")
+    with get_conn() as conn, conn.cursor() as c:
+        c.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
+        conn.commit()
+    return "OK"
 
 @app.route("/game_history")
 def game_history():
-    user_id = request.args.get("user_id")
-    page = int(request.args.get("page", 1))
-    per_page = 50
+    try:
+        user_id = request.args.get("user_id")
+        page = int(request.args.get("page", 1))
+        per_page = 50
 
-    where_sql = ""
-    params = []
+        where_sql = ""
+        params = []
 
-    if user_id:
-        where_sql = "WHERE user_id = %s"
-        params.append(user_id)
+        if user_id:
+            where_sql = "WHERE user_id = %s"
+            params.append(user_id)
 
-    with get_conn() as conn, conn.cursor() as c:
-        c.execute(f"SELECT COUNT(*) FROM game_history {where_sql}", params)
-        total_count = c.fetchone()[0]
+        with get_conn() as conn, conn.cursor() as c:
+            c.execute(f"SELECT COUNT(*) FROM game_history {where_sql}", params)
+            total_count = c.fetchone()[0]
 
-        offset = (page - 1) * per_page
+            offset = (page - 1) * per_page
 
-        c.execute(f"""
-            SELECT user_id, play_time, user_score, bot_score, result, points_change
-            FROM game_history
-            {where_sql}
-            ORDER BY play_time DESC
-            LIMIT %s OFFSET %s
-        """, params + [per_page, offset])
+            c.execute(f"""
+                SELECT user_id, created_at, user_score, bot_score, result, points_change
+                FROM game_history
+                {where_sql}
+                ORDER BY created_at DESC
+                LIMIT %s OFFSET %s
+            """, params + [per_page, offset])
 
-        records = c.fetchall()
+            records = c.fetchall()
 
-    total_pages = (total_count + per_page - 1) // per_page
+        total_pages = (total_count + per_page - 1) // per_page
 
-    return render_template("game_history.html",
-                           records=records,
-                           page=page,
-                           total_pages=total_pages,
-                           user_id=user_id)
+        return render_template("game_history.html",
+                               records=records,
+                               page=page,
+                               total_pages=total_pages,
+                               user_id=user_id)
+    except Exception as e:
+        import traceback
+        return f"<pre>出错了：\n{traceback.format_exc()}</pre>"
 
 async def send_game_rules(chat_id, bot, language_code='zh'):
     if language_code and language_code.startswith('en'):
@@ -274,94 +269,28 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def reward_inviter(user_id, context):
     try:
         with get_conn() as conn, conn.cursor() as c:
-            c.execute("SELECT invited_by, phone, plays FROM users WHERE user_id = %s", (user_id,))
+            c.execute("SELECT invited_by, phone, inviter_rewarded, plays FROM users WHERE user_id = %s", (user_id,))
             row = c.fetchone()
-            if not row:
-                return
-            inviter, phone, plays = row
-            if not inviter or not phone or plays == 0:
-                return
-
-            c.execute("SELECT 1 FROM invite_rewards WHERE invited_user_id = %s", (user_id,))
-            if c.fetchone():
-                return
-
-            c.execute("UPDATE users SET points = points + 10 WHERE user_id = %s RETURNING points", (inviter,))
-            inviter_points = c.fetchone()[0]
-
-            c.execute(
-                "INSERT INTO invite_rewards (invited_user_id, inviter_user_id, rewarded_at) VALUES (%s, %s, %s)",
-                (user_id, inviter, datetime.now().isoformat())
-            )
-            conn.commit()
-
-            try:
-                await context.bot.send_message(
-                    chat_id=inviter,
-                    text=(
-                        f"🎉 你邀请的用户成功参与游戏，获得 +10 积分奖励！\n"
-                        f"🏆 当前总积分：{inviter_points}\n"
-                        "继续邀请更多好友，积分越多越精彩！"
-                    )
-                )
-            except Exception as e:
-                logging.warning(f"邀请积分通知发送失败，邀请人ID: {inviter}, 错误: {e}")
-
+            if row:
+                inviter, phone, rewarded, plays = row
+                if inviter and phone and not rewarded and plays > 0:
+                    c.execute("UPDATE users SET points = points + 10 WHERE user_id = %s RETURNING points", (inviter,))
+                    inviter_points = c.fetchone()[0]
+                    c.execute("UPDATE users SET inviter_rewarded = 1 WHERE user_id = %s", (user_id,))
+                    conn.commit()
+                    try:
+                        await context.bot.send_message(
+                            chat_id=inviter,
+                            text=(
+                                f"🎉 你邀请的用户成功参与游戏，获得 +10 积分奖励！\n"
+                                f"🏆 当前总积分：{inviter_points}\n"
+                                f"继续邀请更多好友，积分越多越精彩！"
+                            )
+                        )
+                    except Exception:
+                        logging.warning(f"邀请积分通知发送失败，邀请人ID: {inviter}")
     except Exception as e:
         logging.error(f"奖励邀请者失败: {e}")
-
-async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    with get_conn() as conn, conn.cursor() as c:
-        c.execute("""
-            SELECT points, plays, invited_by
-            FROM users WHERE user_id = %s
-        """, (user.id,))
-        row = c.fetchone()
-    if not row:
-        await update.message.reply_text("⚠️ 你还未注册，请先发送 /start")
-        return
-    points, plays, inviter = row
-    msg = (
-        f"👤 用户资料：\n"
-        f"🎯 总积分：{points}\n"
-        f"🎲 今日游戏次数：{plays} / 10\n"
-        f"🔗 邀请人ID：{inviter if inviter else '无'}\n"
-        f"🔗 发送 /invite 获取邀请链接赚积分！"
-    )
-    await update.message.reply_text(msg)
-
-async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    bot_name = (await context.bot.get_me()).username
-    invite_link = f"https://t.me/{bot_name}?start={user.id}"
-    msg = (
-        f"📢 你的邀请链接：\n"
-        f"{invite_link}\n\n"
-        "邀请好友注册并参与游戏，双方都可获得积分奖励！"
-    )
-    await update.message.reply_text(msg)
-
-async def show_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    today = date.today().isoformat()
-    with get_conn() as conn, conn.cursor() as c:
-        c.execute("SELECT username, first_name, points FROM users WHERE last_play LIKE %s ORDER BY points DESC LIMIT 10", (f"{today}%",))
-        rows = c.fetchall()
-    if not rows:
-        await update.message.reply_text("📬 今日暂无玩家积分记录")
-        return
-    msg = "📊 今日排行榜：\n"
-    medals = ["🥇", "🥈", "🥉"] + ["🎖"] * 7
-    for i, row in enumerate(rows):
-        name = row[0] or row[1] or "匿名"
-        msg += f"{medals[i]} {name[:4]}*** - {row[2]} 分\n"
-    await update.message.reply_text(msg)
-
-async def share(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    bot_name = (await context.bot.get_me()).username
-    link = f"https://t.me/{bot_name}?start={user.id}"
-    await update.message.reply_text(f"🔗 你的邀请链接：\n{link}\n\n🎁 邀请成功即可获得 +10 积分奖励！")
 
 async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -395,18 +324,14 @@ async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         with get_conn() as conn, conn.cursor() as c:
             c.execute("UPDATE users SET points = points + %s, plays = plays + 1, last_play = %s WHERE user_id = %s",
                       (score, datetime.now().isoformat(), user.id))
+            c.execute("""
+                INSERT INTO game_history (user_id, created_at, user_score, bot_score, result, points_change)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (user.id, datetime.now(), dice1.dice.value, dice2.dice.value,
+                  '赢' if score > 0 else '输' if score < 0 else '平局', score))
             c.execute("SELECT points FROM users WHERE user_id = %s", (user.id,))
             total = c.fetchone()[0]
-
-            result_str = "win" if score > 0 else "lose" if score < 0 else "draw"
-            c.execute("""
-                INSERT INTO game_history (user_id, play_time, user_score, bot_score, result, points_change)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (user.id, datetime.now(), dice1.dice.value, dice2.dice.value, result_str, score))
-
             conn.commit()
-
-        await reward_inviter(user.id, context)
 
         if score > 0:
             result_emoji = "🎉🎉🎉"
@@ -463,13 +388,13 @@ async def handle_group_dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         with get_conn() as conn, conn.cursor() as c:
             c.execute("UPDATE users SET points = points + %s, plays = plays + 1, last_play = %s WHERE user_id = %s",
                       (score, datetime.now().isoformat(), user.id))
+            c.execute("""
+                INSERT INTO game_history (user_id, created_at, user_score, bot_score, result, points_change)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (user.id, datetime.now(), user_score, bot_score,
+                  '赢' if score > 0 else '输' if score < 0 else '平局', score))
             c.execute("SELECT points FROM users WHERE user_id = %s", (user.id,))
             total = c.fetchone()[0]
-            result_str = "win" if score > 0 else "lose" if score < 0 else "draw"
-            c.execute("""
-                INSERT INTO game_history (user_id, play_time, user_score, bot_score, result, points_change)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (user.id, datetime.now(), user_score, bot_score, result_str, score))
             conn.commit()
 
         if score > 0:
@@ -496,6 +421,59 @@ async def handle_group_dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logging.error(f"群组骰子游戏异常: {e}")
         await update.message.reply_text("⚠️ 游戏异常，请稍后重试。")
 
+async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    with get_conn() as conn, conn.cursor() as c:
+        c.execute("""
+            SELECT points, plays, inviter_rewarded
+            FROM users WHERE user_id = %s
+        """, (user.id,))
+        row = c.fetchone()
+    if not row:
+        await update.message.reply_text("⚠️ 你还未注册，请先发送 /start")
+        return
+    points, plays, invited_rewarded = row
+    msg = (
+        f"👤 用户资料：\n"
+        f"🎯 总积分：{points}\n"
+        f"🎲 今日游戏次数：{plays} / 10\n"
+        f"🎁 邀请奖励已领取：{'是' if invited_rewarded else '否'}\n"
+        f"🔗 发送 /invite 获取邀请链接赚积分！"
+    )
+    await update.message.reply_text(msg)
+
+async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    bot_name = (await context.bot.get_me()).username
+    invite_link = f"https://t.me/{bot_name}?start={user.id}"
+    msg = (
+        f"📢 你的邀请链接：\n"
+        f"{invite_link}\n\n"
+        "邀请好友注册并参与游戏，双方都可获得积分奖励！"
+    )
+    await update.message.reply_text(msg)
+
+async def show_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    today = date.today().isoformat()
+    with get_conn() as conn, conn.cursor() as c:
+        c.execute("SELECT username, first_name, points FROM users WHERE last_play LIKE %s ORDER BY points DESC LIMIT 10", (f"{today}%",))
+        rows = c.fetchall()
+    if not rows:
+        await update.message.reply_text("📬 今日暂无玩家积分记录")
+        return
+    msg = "📊 今日排行榜：\n"
+    medals = ["🥇", "🥈", "🥉"] + ["🎖"] * 7
+    for i, row in enumerate(rows):
+        name = row[0] or row[1] or "匿名"
+        msg += f"{medals[i]} {name[:4]}*** - {row[2]} 分\n"
+    await update.message.reply_text(msg)
+
+async def share(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    bot_name = (await context.bot.get_me()).username
+    link = f"https://t.me/{bot_name}?start={user.id}"
+    await update.message.reply_text(f"🔗 你的邀请链接：\n{link}\n\n🎁 邀请成功即可获得 +10 积分奖励！")
+
 async def handle_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_member = update.chat_member
     inviter = chat_member.from_user
@@ -510,12 +488,6 @@ async def handle_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 c.execute("INSERT INTO users (user_id, username, invited_by, created_at) VALUES (%s, %s, %s, %s)",
                           (new_user.id, new_user.username or '', inviter.id, now))
                 conn.commit()
-
-def reset_daily():
-    with get_conn() as conn, conn.cursor() as c:
-        c.execute("UPDATE users SET plays = 0")
-        conn.commit()
-    logging.info("🔄 已重置每日次数")
 
 async def run_telegram_bot():
     app_ = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -532,6 +504,12 @@ async def run_telegram_bot():
     app_.add_handler(ChatMemberHandler(handle_new_member, ChatMemberHandler.CHAT_MEMBER))
     await app_.run_polling(close_loop=False)
 
+def reset_daily():
+    with get_conn() as conn, conn.cursor() as c:
+        c.execute("UPDATE users SET plays = 0")
+        conn.commit()
+    logging.info("🔄 已重置每日次数")
+
 async def main():
     init_db()
     scheduler = AsyncIOScheduler()
@@ -539,8 +517,8 @@ async def main():
     scheduler.start()
     config = Config()
     config.bind = ["0.0.0.0:8080"]
-    web_task = asyncio.create_task(serve(app, config))
-    bot_task = asyncio.create_task(run_telegram_bot())
+    web_task = serve(app, config)
+    bot_task = run_telegram_bot()
     await asyncio.gather(web_task, bot_task)
 
 if __name__ == "__main__":
