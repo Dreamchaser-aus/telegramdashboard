@@ -32,10 +32,10 @@
   </form>
 
   <div class="alert alert-info">
-    总用户数: {{ stats.total_users }} |
-    已授权手机号: {{ stats.authorized_users }} |
-    已封禁用户: {{ stats.blocked_users }} |
-    总积分: {{ stats.total_points }}
+    总用户数: {{ stats.total_users or 0 }} |
+    已授权手机号: {{ stats.authorized_users or 0 }} |
+    已封禁用户: {{ stats.blocked_users or 0 }} |
+    总积分: {{ stats.total_points or 0 }}
   </div>
 
   <table class="table table-bordered table-striped align-middle">
@@ -85,14 +85,16 @@
 
   <nav aria-label="分页导航" class="d-flex justify-content-center">
     <ul class="pagination">
-      <li class="page-item {% if stats.page <= 1 %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page - 1 }}">上一页</a>
+      {% set current_page = stats.page if stats and stats.page is defined else 1 %}
+      {% set total_pages = stats.total_pages if stats and stats.total_pages is defined else 1 %}
+      <li class="page-item {% if current_page <= 1 %}disabled{% endif %}">
+        <a class="page-link" href="?page={{ current_page - 1 }}">上一页</a>
       </li>
       <li class="page-item disabled">
-        <a class="page-link" href="#">{{ stats.page }} / {{ stats.total_pages }}</a>
+        <a class="page-link" href="#">{{ current_page }} / {{ total_pages }}</a>
       </li>
-      <li class="page-item {% if stats.page >= stats.total_pages %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page + 1 }}">下一页</a>
+      <li class="page-item {% if current_page >= total_pages %}disabled{% endif %}">
+        <a class="page-link" href="?page={{ current_page + 1 }}">下一页</a>
       </li>
     </ul>
   </nav>
