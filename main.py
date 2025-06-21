@@ -82,11 +82,9 @@ def init_db():
 
 @app.route("/")
 @app.route("/")
+@app.route("/")
 def dashboard():
-    keyword = request.args.get("keyword", "")
-    inviter_username = request.args.get("inviter_username", "")
-    phone = request.args.get("phone", "")
-    filter_status = request.args.get("status", "all")
+    keyword = request.args.get("keyword", "").strip()  # 获取搜索关键词
     page = int(request.args.get("page", 1))
     per_page = 20
     offset = (page - 1) * per_page
@@ -95,30 +93,18 @@ def dashboard():
     params = []
 
     if keyword:
-        conditions.append("(username ILIKE %s OR phone ILIKE %s)")
+        # 模糊匹配用户名或手机号，注意表别名u
+        conditions.append("(u.username ILIKE %s OR u.phone ILIKE %s)")
         params.extend([f"%{keyword}%", f"%{keyword}%"])
-
-    if inviter_username:
-        conditions.append("invited_by IN (SELECT user_id FROM users WHERE username ILIKE %s)")
-        params.append(f"%{inviter_username}%")
-
-    if phone:
-        conditions.append("phone ILIKE %s")
-        params.append(f"%{phone}%")
-
-    if filter_status == "blocked":
-        conditions.append("is_blocked = 1")
-    elif filter_status == "unblocked":
-        conditions.append("is_blocked = 0")
 
     where_sql = "WHERE " + " AND ".join(conditions) if conditions else ""
 
     with get_conn() as conn, conn.cursor() as c:
-        # 查询总数，用于分页计算
-        c.execute(f"SELECT COUNT(*) FROM users {where_sql}", params)
+        # 先查询总数用于分页
+        c.execute(f"SELECT COUNT(*) FROM users u {where_sql}", params)
         total_count = c.fetchone()[0]
 
-        # 查询用户数据（带分页）
+        # 查询用户数据
         c.execute(f"""
             SELECT u.user_id, u.first_name, u.last_name, u.username, u.phone, u.points, u.plays,
                    u.created_at, u.last_play, u.invited_by, u.inviter_rewarded, u.is_blocked,
@@ -152,7 +138,7 @@ def dashboard():
         "total_pages": total_pages
     }
 
-    return render_template("dashboard.html", users=users, stats=stats)
+    return render_template("dashboard.html", users=users, stats=stats, keyword=keyword)
     
 @app.route("/update_block_status", methods=["POST"])
 def update_block_status():
