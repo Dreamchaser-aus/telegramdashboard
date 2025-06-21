@@ -9,9 +9,13 @@
 <div class="container py-4">
   <h1 class="mb-4">Telegram 用户后台管理</h1>
 
-  <!-- 单搜索框 -->
-  <form method="get" class="mb-3">
-    <input type="text" name="keyword" class="form-control" placeholder="请输入用户名或手机号搜索" value="{{ keyword or '' }}" />
+  <form method="get" class="row g-3 mb-3">
+    <div class="col-md-6">
+      <input type="text" name="keyword" class="form-control" placeholder="模糊搜索用户名或手机号" value="{{ request.args.get('keyword', '') }}" />
+    </div>
+    <div class="col-md-2">
+      <button type="submit" class="btn btn-primary w-100">搜索</button>
+    </div>
   </form>
 
   <div class="alert alert-info">
@@ -45,13 +49,13 @@
           <small>{{ user[1] or '' }} {{ user[2] or '' }}</small>
         </td>
         <td>{{ user[4] or '未授权' }}</td>
-        <td>{{ user[5] }}</td>
-        <td>{{ user[6] }}</td>
-        <td>{{ user[12] or '无' }}</td>
+        <td><input type="number" class="form-control form-control-sm points-input" data-user-id="{{ user[0] }}" value="{{ user[5] }}" /></td>
+        <td><input type="number" class="form-control form-control-sm plays-input" data-user-id="{{ user[0] }}" value="{{ user[6] }}" /></td>
+        <td>{{ user[11] or '无' }}</td>
         <td>
           <select class="form-select form-select-sm block-status" data-user-id="{{ user[0] }}">
-            <option value="0" {% if not user[11] %}selected{% endif %}>否</option>
-            <option value="1" {% if user[11] %}selected{% endif %}>是</option>
+            <option value="0" {% if not user[10] %}selected{% endif %}>否</option>
+            <option value="1" {% if user[10] %}selected{% endif %}>是</option>
           </select>
         </td>
         <td>{{ user[7] }}</td>
@@ -59,6 +63,7 @@
         <td>
           <a href="/game_history?user_id={{ user[0] }}" class="btn btn-sm btn-info">查看游戏记录</a>
           <button class="btn btn-sm btn-danger delete-user-btn" data-user-id="{{ user[0] }}">删除用户</button>
+          <button class="btn btn-sm btn-success save-user-btn" data-user-id="{{ user[0] }}">保存</button>
         </td>
       </tr>
       {% else %}
@@ -67,17 +72,16 @@
     </tbody>
   </table>
 
-  <!-- 分页导航，保留 keyword 参数 -->
   <nav aria-label="分页导航" class="d-flex justify-content-center">
     <ul class="pagination">
       <li class="page-item {% if stats.page <= 1 %}disabled{% endif %}">
-        <a class="page-link" href="?keyword={{ keyword }}&page={{ stats.page - 1 }}">上一页</a>
+        <a class="page-link" href="?page={{ stats.page - 1 }}">上一页</a>
       </li>
       <li class="page-item disabled">
         <a class="page-link" href="#">{{ stats.page }} / {{ stats.total_pages }}</a>
       </li>
       <li class="page-item {% if stats.page >= stats.total_pages %}disabled{% endif %}">
-        <a class="page-link" href="?keyword={{ keyword }}&page={{ stats.page + 1 }}">下一页</a>
+        <a class="page-link" href="?page={{ stats.page + 1 }}">下一页</a>
       </li>
     </ul>
   </nav>
@@ -122,6 +126,43 @@ document.querySelectorAll('.delete-user-btn').forEach(button => {
         location.reload();
       } else {
         alert('删除失败！');
+      }
+    } catch (e) {
+      alert('请求失败！');
+    }
+  });
+});
+
+document.querySelectorAll('.save-user-btn').forEach(button => {
+  button.addEventListener('click', async () => {
+    const userId = button.getAttribute('data-user-id');
+    const pointsInput = document.querySelector(`.points-input[data-user-id="${userId}"]`);
+    const playsInput = document.querySelector(`.plays-input[data-user-id="${userId}"]`);
+    const blockSelect = document.querySelector(`.block-status[data-user-id="${userId}"]`);
+
+    const points = pointsInput.value;
+    const plays = playsInput.value;
+    const isBlocked = blockSelect.value;
+
+    try {
+      const response = await fetch('/update_user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+          user_id: userId,
+          points: points,
+          plays: plays,
+          is_blocked: isBlocked
+        })
+      });
+
+      if (response.ok) {
+        alert('保存成功！');
+        location.reload();
+      } else {
+        alert('保存失败！');
       }
     } catch (e) {
       alert('请求失败！');
