@@ -81,11 +81,15 @@ def init_db():
         conn.commit()
 
 @app.route("/")
+@app.route("/")
 def dashboard():
     keyword = request.args.get("keyword", "")
     inviter_username = request.args.get("inviter_username", "")
     phone = request.args.get("phone", "")
     filter_status = request.args.get("status", "all")
+    page = int(request.args.get("page", 1))
+    per_page = 20
+    offset = (page - 1) * per_page
 
     conditions = []
     params = []
@@ -110,6 +114,11 @@ def dashboard():
     where_sql = "WHERE " + " AND ".join(conditions) if conditions else ""
 
     with get_conn() as conn, conn.cursor() as c:
+        # 查询总数，用于分页计算
+        c.execute(f"SELECT COUNT(*) FROM users {where_sql}", params)
+        total_count = c.fetchone()[0]
+
+        # 查询用户数据（带分页）
         c.execute(f"""
             SELECT u.user_id, u.first_name, u.last_name, u.username, u.phone, u.points, u.plays,
                    u.created_at, u.last_play, u.invited_by, u.inviter_rewarded, u.is_blocked,
@@ -118,10 +127,11 @@ def dashboard():
             LEFT JOIN users i ON u.invited_by = i.user_id
             {where_sql}
             ORDER BY u.created_at DESC
-            LIMIT 100
-        """, params)
+            LIMIT %s OFFSET %s
+        """, params + [per_page, offset])
         users = c.fetchall()
 
+        # 统计信息
         c.execute("SELECT COUNT(*) FROM users")
         total_users = c.fetchone()[0]
         c.execute("SELECT COUNT(*) FROM users WHERE phone IS NOT NULL")
@@ -131,11 +141,15 @@ def dashboard():
         c.execute("SELECT COALESCE(SUM(points), 0) FROM users")
         total_points = c.fetchone()[0]
 
+    total_pages = (total_count + per_page - 1) // per_page
+
     stats = {
         "total_users": total_users,
         "authorized_users": authorized_users,
         "blocked_users": blocked_users,
-        "total_points": total_points
+        "total_points": total_points,
+        "page": page,
+        "total_pages": total_pages
     }
 
     return render_template("dashboard.html", users=users, stats=stats)
