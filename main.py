@@ -5,6 +5,7 @@ import asyncio
 import nest_asyncio
 from datetime import datetime, date
 from flask import Flask, render_template, request
+from flask import jsonify
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram import (
     Update, ReplyKeyboardMarkup, KeyboardButton,
