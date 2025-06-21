@@ -60,6 +60,10 @@ def init_db():
             );
         ''')
         c.execute('''
+            ALTER TABLE game_history
+            ADD COLUMN IF NOT EXISTS user_score INTEGER;
+        ''')
+        c.execute('''
             CREATE TABLE IF NOT EXISTS invite_rewards (
                 id SERIAL PRIMARY KEY,
                 inviter BIGINT NOT NULL,
@@ -281,11 +285,7 @@ async def reward_inviter(user_id, context):
                     try:
                         await context.bot.send_message(
                             chat_id=inviter,
-                            text=(
-                                f"🎉 你邀请的用户成功参与游戏，获得 +10 积分奖励！\n"
-                                f"🏆 当前总积分：{inviter_points}\n"
-                                f"继续邀请更多好友，积分越多越精彩！"
-                            )
+                            text=(f"🎉 你邀请的用户成功参与游戏，获得 +10 积分奖励！\n🏆 当前总积分：{inviter_points}\n继续邀请更多好友，积分越多越精彩！")
                         )
                     except Exception:
                         logging.warning(f"邀请积分通知发送失败，邀请人ID: {inviter}")
