@@ -25,6 +25,15 @@ logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 
+def format_datetime_filter(value):
+    if not value:
+        return "无"
+    try:
+        dt = datetime.fromisoformat(value)
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return value
+        
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
