@@ -64,8 +64,8 @@
             <option value="1" {% if user[10] %}selected{% endif %}>是</option>
           </select>
         </td>
-        <td>{{ user[7] }}</td>
-        <td>{{ user[8] or '未知' }}</td>
+        <td>{{ user[7] | format_datetime }}</td>
+        <td>{{ user[8] | format_datetime }}</td>
         <td>
           <a href="/game_history?user_id={{ user[0] }}" class="btn btn-sm btn-info">查看游戏记录</a>
           <button class="btn btn-sm btn-danger delete-user-btn" data-user-id="{{ user[0] }}">删除用户</button>
