@@ -32,10 +32,10 @@
   </form>
 
   <div class="alert alert-info">
-    总用户数: {{ stats.total_users or 0 }} |
-    已授权手机号: {{ stats.authorized_users or 0 }} |
-    已封禁用户: {{ stats.blocked_users or 0 }} |
-    总积分: {{ stats.total_points or 0 }}
+    总用户数: {{ stats.total_users }} |
+    已授权手机号: {{ stats.authorized_users }} |
+    已封禁用户: {{ stats.blocked_users }} |
+    总积分: {{ stats.total_points }}
   </div>
 
   <table class="table table-bordered table-striped align-middle">
@@ -75,6 +75,7 @@
         <td>{{ user[8] or '未知' }}</td>
         <td>
           <a href="/game_history?user_id={{ user[0] }}" class="btn btn-sm btn-info">查看游戏记录</a>
+          <button class="btn btn-sm btn-danger delete-user-btn" data-user-id="{{ user[0] }}">删除用户</button>
         </td>
       </tr>
       {% else %}
@@ -85,16 +86,14 @@
 
   <nav aria-label="分页导航" class="d-flex justify-content-center">
     <ul class="pagination">
-      {% set current_page = stats.page if stats and stats.page is defined else 1 %}
-      {% set total_pages = stats.total_pages if stats and stats.total_pages is defined else 1 %}
-      <li class="page-item {% if current_page <= 1 %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ current_page - 1 }}">上一页</a>
+      <li class="page-item {% if stats.page <= 1 %}disabled{% endif %}">
+        <a class="page-link" href="?page={{ stats.page - 1 }}">上一页</a>
       </li>
       <li class="page-item disabled">
-        <a class="page-link" href="#">{{ current_page }} / {{ total_pages }}</a>
+        <a class="page-link" href="#">{{ stats.page }} / {{ stats.total_pages }}</a>
       </li>
-      <li class="page-item {% if current_page >= total_pages %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ current_page + 1 }}">下一页</a>
+      <li class="page-item {% if stats.page >= stats.total_pages %}disabled{% endif %}">
+        <a class="page-link" href="?page={{ stats.page + 1 }}">下一页</a>
       </li>
     </ul>
   </nav>
@@ -115,6 +114,33 @@ document.querySelectorAll('.block-status').forEach(select => {
       alert('封禁状态已更新');
     } catch (e) {
       alert('更新封禁状态失败');
+    }
+  });
+});
+
+document.querySelectorAll('.delete-user-btn').forEach(button => {
+  button.addEventListener('click', async () => {
+    if (!confirm("确定要删除此用户吗？此操作不可恢复！")) return;
+
+    const userId = button.getAttribute('data-user-id');
+
+    try {
+      const response = await fetch('/delete_user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({ user_id: userId })
+      });
+
+      if (response.ok) {
+        alert('删除成功！页面将刷新。');
+        location.reload();
+      } else {
+        alert('删除失败！');
+      }
+    } catch (e) {
+      alert('请求失败！');
     }
   });
 });
