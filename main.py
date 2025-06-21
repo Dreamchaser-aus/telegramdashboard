@@ -59,9 +59,15 @@ def init_db():
                 points_change INTEGER
             );
         ''')
+        # 确保 user_score 字段存在
         c.execute('''
             ALTER TABLE game_history
             ADD COLUMN IF NOT EXISTS user_score INTEGER;
+        ''')
+        # 确保 bot_score 字段存在
+        c.execute('''
+            ALTER TABLE game_history
+            ADD COLUMN IF NOT EXISTS bot_score INTEGER;
         ''')
         c.execute('''
             CREATE TABLE IF NOT EXISTS invite_rewards (
