@@ -25,6 +25,7 @@ logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 
+@app.template_filter('format_datetime')
 def format_datetime_filter(value):
     if not value:
         return "无"
