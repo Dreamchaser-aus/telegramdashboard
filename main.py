@@ -153,7 +153,21 @@ def dashboard():
     }
 
     return render_template("dashboard.html", users=users, stats=stats)
-
+    
+@app.route("/update_block_status", methods=["POST"])
+def update_block_status():
+    try:
+        data = request.get_json()
+        user_id = data.get("user_id")
+        is_blocked = int(data.get("is_blocked"))
+        with get_conn() as conn, conn.cursor() as c:
+            c.execute("UPDATE users SET is_blocked = %s WHERE user_id = %s", (is_blocked, user_id))
+            conn.commit()
+        return "OK"
+    except Exception as e:
+        logging.error(f"更新封禁状态失败: {e}")
+        return "失败", 500
+    
 @app.route("/update_user", methods=["POST"])
 def update_user():
     user_id = request.form.get("user_id")
