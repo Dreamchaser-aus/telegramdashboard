@@ -9,26 +9,9 @@
 <div class="container py-4">
   <h1 class="mb-4">Telegram 用户后台管理</h1>
 
-  <form method="get" class="row g-3 mb-3">
-    <div class="col-md-3">
-      <input type="text" name="keyword" class="form-control" placeholder="用户名或手机号" value="{{ keyword or '' }}" />
-    </div>
-    <div class="col-md-3">
-      <input type="text" name="inviter_username" class="form-control" placeholder="邀请人用户名" value="{{ inviter_username or '' }}" />
-    </div>
-    <div class="col-md-3">
-      <input type="text" name="phone" class="form-control" placeholder="手机号" value="{{ phone or '' }}" />
-    </div>
-    <div class="col-md-2">
-      <select name="status" class="form-select">
-        <option value="all" {% if status == 'all' %}selected{% endif %}>全部</option>
-        <option value="blocked" {% if status == 'blocked' %}selected{% endif %}>已封禁</option>
-        <option value="unblocked" {% if status == 'unblocked' %}selected{% endif %}>未封禁</option>
-      </select>
-    </div>
-    <div class="col-md-1">
-      <button type="submit" class="btn btn-primary w-100">搜索</button>
-    </div>
+  <!-- 单搜索框 -->
+  <form method="get" class="mb-3">
+    <input type="text" name="keyword" class="form-control" placeholder="请输入用户名或手机号搜索" value="{{ keyword or '' }}" />
   </form>
 
   <div class="alert alert-info">
@@ -84,16 +67,17 @@
     </tbody>
   </table>
 
+  <!-- 分页导航，保留 keyword 参数 -->
   <nav aria-label="分页导航" class="d-flex justify-content-center">
     <ul class="pagination">
       <li class="page-item {% if stats.page <= 1 %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page - 1 }}&keyword={{ keyword }}&inviter_username={{ inviter_username }}&phone={{ phone }}&status={{ status }}">上一页</a>
+        <a class="page-link" href="?keyword={{ keyword }}&page={{ stats.page - 1 }}">上一页</a>
       </li>
       <li class="page-item disabled">
         <a class="page-link" href="#">{{ stats.page }} / {{ stats.total_pages }}</a>
       </li>
       <li class="page-item {% if stats.page >= stats.total_pages %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page + 1 }}&keyword={{ keyword }}&inviter_username={{ inviter_username }}&phone={{ phone }}&status={{ status }}">下一页</a>
+        <a class="page-link" href="?keyword={{ keyword }}&page={{ stats.page + 1 }}">下一页</a>
       </li>
     </ul>
   </nav>
