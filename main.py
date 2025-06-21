@@ -179,6 +179,18 @@ def delete_user():
         c.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
         conn.commit()
     return "OK"
+    
+@app.route('/rank_data')
+def rank_data():
+    today = date.today().isoformat()
+    with get_conn() as conn, conn.cursor() as c:
+        c.execute("SELECT username, first_name, points FROM users WHERE last_play LIKE %s ORDER BY points DESC LIMIT 10", (f"{today}%",))
+        rows = c.fetchall()
+    data = [
+        {"username": r[0], "first_name": r[1], "points": r[2]}
+        for r in rows
+    ]
+    return jsonify(data)
 
 @app.route("/game_history")
 def game_history():
