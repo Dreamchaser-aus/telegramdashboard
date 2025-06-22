@@ -1,38 +1,94 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
-  <meta charset="UTF-8" />
-  <title>Telegram 用户后台管理</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>用户管理后台</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+<style>
+  body { padding: 20px; }
+  .stats { background-color: #d1ecf1; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
+  .table thead th { background-color: #212529; color: white; }
+  .btn-save { background-color: #198754; color: white; }
+  .btn-delete { background-color: #dc3545; color: white; }
+  .btn-record { background-color: #0dcaf0; color: white; }
+</style>
+<script>
+async function updateBlockStatus(userId, selectElem) {
+  const isBlocked = selectElem.value === '是' ? 1 : 0;
+  try {
+    const res = await fetch('/update_block_status', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({user_id: userId, is_blocked: isBlocked})
+    });
+    if (!res.ok) alert('更新失败');
+  } catch(e) {
+    alert('请求异常');
+  }
+}
+
+async function saveUser(userId, btn) {
+  const row = btn.closest('tr');
+  const points = row.querySelector('.points-input').value;
+  const plays = row.querySelector('.plays-input').value;
+  const blockSelect = row.querySelector('.block-select');
+  const isBlocked = blockSelect.value === '是' ? 1 : 0;
+
+  const formData = new FormData();
+  formData.append('user_id', userId);
+  formData.append('points', points);
+  formData.append('plays', plays);
+  formData.append('is_blocked', isBlocked);
+
+  try {
+    const res = await fetch('/update_user', {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) alert('保存失败');
+    else alert('保存成功');
+  } catch(e) {
+    alert('请求异常');
+  }
+}
+
+async function deleteUser(userId, btn) {
+  if (!confirm('确认删除该用户？此操作不可恢复！')) return;
+  const formData = new FormData();
+  formData.append('user_id', userId);
+  try {
+    const res = await fetch('/delete_user', {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) alert('删除失败');
+    else {
+      alert('删除成功');
+      btn.closest('tr').remove();
+    }
+  } catch(e) {
+    alert('请求异常');
+  }
+}
+</script>
 </head>
 <body>
-<div class="container py-4">
-  <h1 class="mb-4">Telegram 用户后台管理</h1>
 
-  <!-- 搜索框 -->
-  <form method="get" class="row g-3 mb-3">
-    <div class="col-md-6">
-      <input type="text" name="keyword" class="form-control" placeholder="模糊搜索用户名或手机号" value="{{ request.args.get('keyword', '') }}" />
-    </div>
-    <div class="col-md-2">
-      <button type="submit" class="btn btn-primary w-100">搜索</button>
-    </div>
-    <div class="col-md-2">
-      <button type="button" id="show-rank" class="btn btn-success w-100">查看今日排行榜</button>
-    </div>
+<div class="container">
+
+  <form method="get" class="mb-3 d-flex gap-2">
+    <input type="text" name="keyword" placeholder="模糊搜索用户名或手机号" class="form-control" value="{{ keyword }}">
+    <button type="submit" class="btn btn-primary">搜索</button>
+    <a href="/rank_data" class="btn btn-success" target="_blank">查看今日排行榜</a>
   </form>
 
-  <!-- 统计信息 -->
-  <div class="alert alert-info">
-    总用户数: {{ stats.total_users }} |
-    已授权手机号: {{ stats.authorized_users }} |
-    已封禁用户: {{ stats.blocked_users }} |
-    总积分: {{ stats.total_points }}
+  <div class="stats">
+    总用户数: {{ stats.total_users }} | 已授权手机号: {{ stats.authorized_users }} | 已封禁用户: {{ stats.blocked_users }} | 总积分: {{ stats.total_points }}
   </div>
 
-  <!-- 用户表格 -->
-  <table class="table table-bordered table-striped align-middle">
-    <thead class="table-dark">
+  <table class="table table-bordered table-hover align-middle">
+    <thead>
       <tr>
         <th>用户ID</th>
         <th>用户名</th>
@@ -49,181 +105,46 @@
     <tbody>
       {% for user in users %}
       <tr>
-        <td>{{ user[0] }}</td>
+        <td>{{ user[0] }}</td> <!-- user_id -->
+        <td>{{ user[3] }}</td> <!-- username -->
+        <td>{{ user[4] if user[4] else '未授权' }}</td> <!-- phone -->
+        <td><input type="number" class="form-control points-input" value="{{ user[5] }}"></td> <!-- points -->
+        <td><input type="number" class="form-control plays-input" value="{{ user[6] }}"></td> <!-- plays -->
+        <td>{{ user[12] if user[12] else '无' }}</td> <!-- inviter_username -->
         <td>
-          {{ user[3] or '无用户名' }}<br/>
-          <small>{{ user[1] or '' }} {{ user[2] or '' }}</small>
-        </td>
-        <td>{{ user[4] or '未授权' }}</td>
-        <td><input type="number" class="form-control form-control-sm points-input" data-user-id="{{ user[0] }}" value="{{ user[5] }}" /></td>
-        <td><input type="number" class="form-control form-control-sm plays-input" data-user-id="{{ user[0] }}" value="{{ user[6] }}" /></td>
-        <td>{{ user[11] or '无' }}</td>
-        <td>
-          <select class="form-select form-select-sm block-status" data-user-id="{{ user[0] }}">
-            <option value="0" {% if not user[10] %}selected{% endif %}>否</option>
-            <option value="1" {% if user[10] %}selected{% endif %}>是</option>
+          <select class="form-select block-select" onchange="updateBlockStatus('{{ user[0] }}', this)">
+            <option value="否" {% if not user[11] %}selected{% endif %}>否</option>
+            <option value="是" {% if user[11] %}selected{% endif %}>是</option>
           </select>
         </td>
-        <td>{{ user[7] | format_datetime }}</td>
-        <td>{{ user[8] | format_datetime }}</td>
+        <td>{{ user[7] }}</td> <!-- created_at -->
+        <td>{{ user[8] if user[8] else '无' }}</td> <!-- last_play -->
         <td>
-          <a href="/game_history?user_id={{ user[0] }}" class="btn btn-sm btn-info">查看游戏记录</a>
-          <button class="btn btn-sm btn-danger delete-user-btn" data-user-id="{{ user[0] }}">删除用户</button>
-          <button class="btn btn-sm btn-success save-user-btn" data-user-id="{{ user[0] }}">保存</button>
+          <button type="button" class="btn btn-record btn-sm" onclick="window.open('/game_history?user_id={{ user[0] }}', '_blank')">查看游戏记录</button>
+          <button type="button" class="btn btn-save btn-sm" onclick="saveUser('{{ user[0] }}', this)">保存</button>
+          <button type="button" class="btn btn-delete btn-sm" onclick="deleteUser('{{ user[0] }}', this)">删除用户</button>
         </td>
       </tr>
-      {% else %}
-      <tr><td colspan="10" class="text-center">无用户数据</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
   <!-- 分页 -->
-  <nav aria-label="分页导航" class="d-flex justify-content-center">
-    <ul class="pagination">
-      <li class="page-item {% if stats.page <= 1 %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page - 1 }}&keyword={{ request.args.get('keyword', '') }}">上一页</a>
+  <nav aria-label="分页">
+    <ul class="pagination justify-content-center">
+      <li class="page-item {% if stats.page == 1 %}disabled{% endif %}">
+        <a class="page-link" href="?page={{ stats.page - 1 }}&keyword={{ keyword }}">上一页</a>
       </li>
       <li class="page-item disabled">
         <a class="page-link" href="#">{{ stats.page }} / {{ stats.total_pages }}</a>
       </li>
-      <li class="page-item {% if stats.page >= stats.total_pages %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page + 1 }}&keyword={{ request.args.get('keyword', '') }}">下一页</a>
+      <li class="page-item {% if stats.page == stats.total_pages %}disabled{% endif %}">
+        <a class="page-link" href="?page={{ stats.page + 1 }}&keyword={{ keyword }}">下一页</a>
       </li>
     </ul>
   </nav>
+
 </div>
 
-<!-- 排行榜弹窗 -->
-<div class="modal fade" id="rankModal" tabindex="-1" aria-labelledby="rankModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="rankModalLabel">今日排行榜</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
-      </div>
-      <div class="modal-body">
-        <ul id="rankList" class="list-group">
-          <!-- 排行榜列表将动态加载 -->
-        </ul>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-  // 更新封禁状态
-  document.querySelectorAll('.block-status').forEach(select => {
-    select.addEventListener('change', async function() {
-      const userId = this.getAttribute('data-user-id');
-      const isBlocked = this.value;
-      try {
-        const res = await fetch('/update_block_status', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ user_id: userId, is_blocked: isBlocked })
-        });
-        if (!res.ok) throw new Error('更新失败');
-        alert('封禁状态已更新');
-      } catch (e) {
-        alert('更新封禁状态失败');
-      }
-    });
-  });
-
-  // 删除用户
-  document.querySelectorAll('.delete-user-btn').forEach(button => {
-    button.addEventListener('click', async () => {
-      if (!confirm("确定要删除此用户吗？此操作不可恢复！")) return;
-
-      const userId = button.getAttribute('data-user-id');
-
-      try {
-        const response = await fetch('/delete_user', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: new URLSearchParams({ user_id: userId })
-        });
-
-        if (response.ok) {
-          alert('删除成功！页面将刷新。');
-          location.reload();
-        } else {
-          alert('删除失败！');
-        }
-      } catch (e) {
-        alert('请求失败！');
-      }
-    });
-  });
-
-  // 保存积分和今日游戏次数
-  document.querySelectorAll('.save-user-btn').forEach(button => {
-    button.addEventListener('click', async () => {
-      const userId = button.getAttribute('data-user-id');
-      const pointsInput = document.querySelector(`.points-input[data-user-id="${userId}"]`);
-      const playsInput = document.querySelector(`.plays-input[data-user-id="${userId}"]`);
-      const blockSelect = document.querySelector(`.block-status[data-user-id="${userId}"]`);
-
-      const points = pointsInput.value;
-      const plays = playsInput.value;
-      const isBlocked = blockSelect.value;
-
-      try {
-        const response = await fetch('/update_user', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: new URLSearchParams({
-            user_id: userId,
-            points: points,
-            plays: plays,
-            is_blocked: isBlocked
-          })
-        });
-
-        if (response.ok) {
-          alert('保存成功！');
-          location.reload();
-        } else {
-          alert('保存失败！');
-        }
-      } catch (e) {
-        alert('请求失败！');
-      }
-    });
-  });
-
-  // 查看排行榜按钮点击，获取排行榜数据
-  document.getElementById('show-rank').addEventListener('click', async () => {
-    try {
-      const res = await fetch('/rank_data');  // 需要后端提供 /rank_data 路由，返回今日排行榜JSON数据
-      if (!res.ok) throw new Error('加载失败');
-      const rankData = await res.json();
-
-      const rankList = document.getElementById('rankList');
-      rankList.innerHTML = '';
-      rankData.forEach((user, index) => {
-        const li = document.createElement('li');
-        li.className = 'list-group-item d-flex justify-content-between align-items-center';
-        li.textContent = `${index + 1}. ${user.username || user.first_name || '匿名'} - ${user.points} 分`;
-        rankList.appendChild(li);
-      });
-
-      // 显示弹窗
-      const rankModal = new bootstrap.Modal(document.getElementById('rankModal'));
-      rankModal.show();
-    } catch (error) {
-      alert('加载排行榜失败');
-    }
-  });
-</script>
 </body>
 </html>
