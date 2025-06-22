@@ -9,6 +9,7 @@
 <div class="container py-4">
   <h1 class="mb-4">Telegram 用户后台管理</h1>
 
+  <!-- 搜索表单 -->
   <form method="get" class="row g-3 mb-3">
     <div class="col-md-6">
       <input type="text" name="keyword" class="form-control" placeholder="用户名 / 手机号 / 邀请人用户名" value="{{ keyword or '' }}" />
@@ -25,9 +26,10 @@
     </div>
   </form>
 
-  <!-- 新增排行榜按钮 -->
+  <!-- 今日排行榜按钮 -->
   <button id="show-rank-btn" class="btn btn-info mb-3">今日排行榜</button>
 
+  <!-- 统计信息 -->
   <div class="alert alert-info">
     总用户数: {{ stats.total_users }} |
     已授权手机号: {{ stats.authorized_users }} |
@@ -35,6 +37,7 @@
     总积分: {{ stats.total_points }}
   </div>
 
+  <!-- 用户数据表格 -->
   <table class="table table-bordered table-striped align-middle">
     <thead class="table-dark">
       <tr>
@@ -59,12 +62,15 @@
           <small>{{ user[1] or '' }} {{ user[2] or '' }}</small>
         </td>
         <td>{{ user[4] or '未授权' }}</td>
-        <td>{{ user[5] }}</td>
-        <td>{{ user[6] }}</td>
+        <td contenteditable="true">{{ user[5] }}</td>
+        <td contenteditable="true">{{ user[6] }}</td>
         <td>
-          {{ user.inviter_username or '无' }}<br/>
-          {% if user[9] %}
-          <a href="/invitees?user_id={{ user[9] }}" class="btn btn-sm btn-primary mt-1">查看邀请用户</a>
+          {% if user.inviter_username %}
+            <a href="/invitees?user_id={{ user[9] }}" style="color:#0d6efd; text-decoration: underline; cursor: pointer;">
+              {{ user.inviter_username }}
+            </a>
+          {% else %}
+            无
           {% endif %}
         </td>
         <td>
@@ -87,6 +93,7 @@
     </tbody>
   </table>
 
+  <!-- 分页 -->
   <nav aria-label="分页导航" class="d-flex justify-content-center">
     <ul class="pagination">
       <li class="page-item {% if stats.page <= 1 %}disabled{% endif %}">
@@ -122,6 +129,7 @@
   </div>
 </div>
 
+<!-- 引入 Bootstrap JS Bundle -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
@@ -150,8 +158,8 @@
     button.addEventListener('click', async function() {
       const tr = this.closest('tr');
       const userId = tr.getAttribute('data-user-id');
-      const points = tr.querySelector('td:nth-child(4)').innerText;
-      const plays = tr.querySelector('td:nth-child(5)').innerText;
+      const points = tr.querySelector('td:nth-child(4)').innerText.trim();
+      const plays = tr.querySelector('td:nth-child(5)').innerText.trim();
       const isBlocked = tr.querySelector('.block-status').value;
       try {
         const formData = new FormData();
@@ -193,7 +201,7 @@
     });
   });
 
-  // 今日排行榜按钮逻辑
+  // 今日排行榜按钮点击事件
   document.getElementById('show-rank-btn').addEventListener('click', async () => {
     const rankList = document.getElementById('rank-list');
     rankList.innerHTML = '<li class="list-group-item">加载中...</li>';
@@ -217,7 +225,7 @@
       rankList.innerHTML = '<li class="list-group-item text-danger">加载失败，请稍后重试。</li>';
     }
 
-    // 弹出模态框
+    // 显示模态框
     const rankModal = new bootstrap.Modal(document.getElementById('rankModal'));
     rankModal.show();
   });
