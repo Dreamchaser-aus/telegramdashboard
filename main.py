@@ -94,8 +94,10 @@ def init_db():
 @app.route("/")
 @app.route("/")
 @app.route("/")
+@app.route("/")
 def dashboard():
-    keyword = request.args.get("keyword", "").strip()  # 获取搜索关键词
+    keyword = request.args.get("keyword", "").strip()
+    authorized = request.args.get("authorized", "").strip()
     page = int(request.args.get("page", 1))
     per_page = 20
     offset = (page - 1) * per_page
@@ -104,18 +106,20 @@ def dashboard():
     params = []
 
     if keyword:
-        # 模糊匹配用户名或手机号，注意表别名u
-        conditions.append("(u.username ILIKE %s OR u.phone ILIKE %s)")
-        params.extend([f"%{keyword}%", f"%{keyword}%"])
+        conditions.append("(u.username ILIKE %s OR u.phone ILIKE %s OR i.username ILIKE %s)")
+        params.extend([f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
+
+    if authorized == '1':
+        conditions.append("u.phone IS NOT NULL")
+    elif authorized == '0':
+        conditions.append("u.phone IS NULL")
 
     where_sql = "WHERE " + " AND ".join(conditions) if conditions else ""
 
     with get_conn() as conn, conn.cursor() as c:
-        # 先查询总数用于分页
         c.execute(f"SELECT COUNT(*) FROM users u {where_sql}", params)
         total_count = c.fetchone()[0]
 
-        # 查询用户数据
         c.execute(f"""
             SELECT u.user_id, u.first_name, u.last_name, u.username, u.phone, u.points, u.plays,
                    u.created_at, u.last_play, u.invited_by, u.inviter_rewarded, u.is_blocked,
@@ -149,7 +153,11 @@ def dashboard():
         "total_pages": total_pages
     }
 
-    return render_template("dashboard.html", users=users, stats=stats, keyword=keyword)
+    return render_template("dashboard.html",
+                           users=users,
+                           stats=stats,
+                           keyword=keyword,
+                           is_authorized=authorized)
     
 @app.route("/update_block_status", methods=["POST"])
 def update_block_status():
