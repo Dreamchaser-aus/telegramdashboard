@@ -27,17 +27,31 @@
         <option value="0" {% if is_authorized == '0' %}selected{% endif %}>未授权手机号</option>
       </select>
     </div>
-    <div class="col-md-1">
+    <div class="col-md-1 d-flex align-items-center">
       <button type="submit" class="btn btn-primary w-100">搜索</button>
     </div>
   </form>
 
-  <!-- 新增每日排行榜 -->
+  <!-- 排行榜按钮 -->
   <div class="mb-4">
-    <h3>🎖️ 今日积分排行榜</h3>
-    <ul id="rank-list" class="list-group" style="max-width: 400px;">
-      <li class="list-group-item">加载中...</li>
-    </ul>
+    <button id="show-rank-btn" class="btn btn-info">查看今日积分排行榜</button>
+  </div>
+
+  <!-- 排行榜模态框 -->
+  <div class="modal fade" id="rankModal" tabindex="-1" aria-labelledby="rankModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="rankModalLabel">🎖️ 今日积分排行榜</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+        </div>
+        <div class="modal-body">
+          <ul id="rank-list" class="list-group">
+            <li class="list-group-item">加载中...</li>
+          </ul>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- 用户数据表格 -->
@@ -108,21 +122,23 @@
   </nav>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  // 每日积分排行榜加载
-  async function loadRank() {
+  // 弹窗和排行榜加载
+  const rankModal = new bootstrap.Modal(document.getElementById('rankModal'));
+  const rankList = document.getElementById('rank-list');
+  document.getElementById('show-rank-btn').addEventListener('click', async () => {
+    rankList.innerHTML = '<li class="list-group-item">加载中...</li>';
+    rankModal.show();
     try {
       const res = await fetch('/rank_data');
       if (!res.ok) throw new Error('获取排行榜失败');
       const data = await res.json();
-      const rankList = document.getElementById('rank-list');
-      rankList.innerHTML = ''; // 清空内容
-
+      rankList.innerHTML = '';
       if (data.length === 0) {
         rankList.innerHTML = '<li class="list-group-item">暂无数据</li>';
         return;
       }
-
       const medals = ["🥇", "🥈", "🥉"];
       data.forEach((user, i) => {
         const medal = medals[i] || '🎖️';
@@ -133,11 +149,10 @@
         rankList.appendChild(li);
       });
     } catch (e) {
-      const rankList = document.getElementById('rank-list');
       rankList.innerHTML = `<li class="list-group-item text-danger">加载失败，请刷新页面</li>`;
       console.error(e);
     }
-  }
+  });
 
   // 封禁状态更新，JSON格式请求匹配后端
   document.querySelectorAll('.block-status').forEach(select => {
@@ -206,9 +221,6 @@
       }
     });
   });
-
-  // 页面加载完毕后加载排行榜
-  document.addEventListener('DOMContentLoaded', loadRank);
 </script>
 </body>
 </html>
