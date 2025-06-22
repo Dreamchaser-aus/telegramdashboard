@@ -11,14 +11,8 @@
 
   <!-- 搜索表单 -->
   <form method="get" class="row g-3 mb-3">
-    <div class="col-md-3">
-      <input type="text" name="keyword" class="form-control" placeholder="用户名或手机号" value="{{ keyword or '' }}" />
-    </div>
-    <div class="col-md-3">
-      <input type="text" name="invited_by" class="form-control" placeholder="邀请人用户名" value="{{ invited_by_filter or '' }}" />
-    </div>
-    <div class="col-md-3">
-      <input type="text" name="phone" class="form-control" placeholder="手机号" value="{{ phone_filter or '' }}" />
+    <div class="col-md-6">
+      <input type="text" name="q" class="form-control" placeholder="用户名、手机号或邀请人用户名" value="{{ q or '' }}" />
     </div>
     <div class="col-md-2">
       <select name="authorized" class="form-select">
@@ -27,7 +21,7 @@
         <option value="0" {% if is_authorized == '0' %}selected{% endif %}>未授权手机号</option>
       </select>
     </div>
-    <div class="col-md-1 d-flex align-items-center">
+    <div class="col-md-2">
       <button type="submit" class="btn btn-primary w-100">搜索</button>
     </div>
   </form>
@@ -110,13 +104,13 @@
   <nav aria-label="分页导航" class="d-flex justify-content-center">
     <ul class="pagination">
       <li class="page-item {% if stats.page <= 1 %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page - 1 }}">上一页</a>
+        <a class="page-link" href="?page={{ stats.page - 1 }}&q={{ q or '' }}&authorized={{ is_authorized or '' }}">上一页</a>
       </li>
       <li class="page-item disabled">
         <a class="page-link" href="#">{{ stats.page }} / {{ stats.total_pages }}</a>
       </li>
       <li class="page-item {% if stats.page >= stats.total_pages %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page + 1 }}">下一页</a>
+        <a class="page-link" href="?page={{ stats.page + 1 }}&q={{ q or '' }}&authorized={{ is_authorized or '' }}">下一页</a>
       </li>
     </ul>
   </nav>
