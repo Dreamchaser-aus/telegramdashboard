@@ -131,7 +131,7 @@ def dashboard():
 
             c.execute(f"""
                 SELECT u.user_id, u.first_name, u.last_name, u.username, u.phone, u.points, u.plays,
-                       u.created_at, u.last_play, u.invited_by, u.inviter_rewarded, u.is_blocked,
+                       u.created_at, u.last_play, u.invited_by, u.is_blocked,
                        i.username as inviter_username
                 FROM users u
                 LEFT JOIN users i ON u.invited_by = i.user_id
