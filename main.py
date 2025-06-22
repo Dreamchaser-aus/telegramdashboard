@@ -96,6 +96,7 @@ def init_db():
 @app.route("/")
 @app.route("/")
 
+@app.route("/")
 def dashboard():
     try:
         keyword = request.args.get("keyword", "").strip()
@@ -108,7 +109,6 @@ def dashboard():
         params = []
 
         if keyword:
-            # 注意这里 i.username 用于邀请人用户名模糊搜索
             conditions.append("(u.username ILIKE %s OR u.phone ILIKE %s OR i.username ILIKE %s)")
             params.extend([f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
 
@@ -120,7 +120,6 @@ def dashboard():
         where_sql = "WHERE " + " AND ".join(conditions) if conditions else ""
 
         with get_conn() as conn, conn.cursor() as c:
-            # 总数查询时也要加 LEFT JOIN，保证 i 别名可用
             c.execute(f"""
                 SELECT COUNT(*)
                 FROM users u
@@ -131,7 +130,8 @@ def dashboard():
 
             c.execute(f"""
                 SELECT u.user_id, u.first_name, u.last_name, u.username, u.phone, u.points, u.plays,
-                       u.created_at, u.last_play, u.invited_by, u.is_blocked, i.username as inviter_username,
+                       u.created_at, u.last_play, u.invited_by, u.is_blocked,
+                       i.username AS inviter_username,
                        COALESCE((SELECT COUNT(*) FROM users u2 WHERE u2.invited_by = u.user_id), 0) AS invite_count
                 FROM users u
                 LEFT JOIN users i ON u.invited_by = i.user_id
