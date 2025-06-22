@@ -45,36 +45,37 @@
     margin: auto;
   }
   /* 操作列宽度和按钮样式调整 */
-  .table tbody td.actions-cell {
-    min-width: 300px !important;
+  td.actions-cell {
+    width: 320px !important;
     white-space: nowrap !important;
   }
   .actions-cell button {
     white-space: nowrap !important;
     margin: 0 6px !important;
-    padding: 5px 12px !important;
+    padding: 5px 14px !important;
     font-size: 0.9rem !important;
     border-radius: 0.25rem !important;
     cursor: pointer !important;
     border: none !important;
+    display: inline-block !important;
   }
   .btn-save {
     background-color: #198754 !important;
-    color: white !important;
+    color: #fff !important;
   }
   .btn-save:hover {
     background-color: #146c43 !important;
   }
   .btn-delete {
     background-color: #dc3545 !important;
-    color: white !important;
+    color: #fff !important;
   }
   .btn-delete:hover {
     background-color: #b02a37 !important;
   }
   .btn-record {
     background-color: #0dcaf0 !important;
-    color: white !important;
+    color: #fff !important;
   }
   .btn-record:hover {
     background-color: #31d2f2 !important;
@@ -97,6 +98,11 @@
   }
   .table-responsive {
     overflow-x: auto !important;
+    max-width: 100% !important;
+  }
+  table {
+    table-layout: fixed !important;
+    width: 100% !important;
   }
 </style>
 <script>
@@ -164,7 +170,7 @@ async function deleteUser(userId, btn) {
 <div class="container">
 
   <form method="get" class="form-inline">
-    <input type="text" name="keyword" placeholder="模糊搜索用户名或手机号" class="form-control" value="{{ keyword }}" title="输入用户名或手机号模糊搜索">
+    <input type="text" name="keyword" placeholder="模糊搜索用户名或手机号" class="form-control" value="{{ keyword }}" title="输入用户名或手机号模糊搜索" />
     <button type="submit" class="btn btn-primary">搜索</button>
     <a href="/rank_data" class="btn btn-success" target="_blank">查看今日排行榜</a>
   </form>
@@ -195,8 +201,8 @@ async function deleteUser(userId, btn) {
           <td title="{{ user[0] }}">{{ user[0] }}</td>
           <td class="username" title="{{ user[3] }}">{{ user[3] }}</td>
           <td class="phone" title="{{ user[4] if user[4] else '未授权' }}">{{ user[4] if user[4] else '未授权' }}</td>
-          <td><input type="number" class="form-control points-input" value="{{ user[5] }}" title="编辑积分"></td>
-          <td><input type="number" class="form-control plays-input" value="{{ user[6] }}" title="编辑今日游戏次数"></td>
+          <td><input type="number" class="form-control points-input" value="{{ user[5] }}" title="编辑积分" /></td>
+          <td><input type="number" class="form-control plays-input" value="{{ user[6] }}" title="编辑今日游戏次数" /></td>
           <td class="inviter" title="{{ user[12] if user[12] else '无' }}">{{ user[12] if user[12] else '无' }}</td>
           <td>
             <select class="form-select block-select" onchange="updateBlockStatus('{{ user[0] }}', this)" title="修改封禁状态">
@@ -206,10 +212,10 @@ async function deleteUser(userId, btn) {
           </td>
           <td title="{{ user[7] }}">{{ user[7] }}</td>
           <td title="{{ user[8] if user[8] else '无' }}">{{ user[8] if user[8] else '无' }}</td>
-          <td class="actions-cell">
-            <button type="button" class="btn btn-record btn-sm" style="min-width:90px;" onclick="window.open('/game_history?user_id={{ user[0] }}', '_blank')" title="查看游戏记录">查看游戏记录</button>
-            <button type="button" class="btn btn-save btn-sm" style="min-width:70px;" onclick="saveUser('{{ user[0] }}', this)" title="保存修改">保存</button>
-            <button type="button" class="btn btn-delete btn-sm" style="min-width:70px;" onclick="deleteUser('{{ user[0] }}', this)" title="删除用户">删除用户</button>
+          <td class="actions-cell" style="width: 320px; white-space: nowrap;">
+            <button type="button" class="btn btn-record btn-sm" style="min-width: 100px;" onclick="window.open('/game_history?user_id={{ user[0] }}', '_blank')" title="查看游戏记录">查看游戏记录</button>
+            <button type="button" class="btn btn-save btn-sm" style="min-width: 80px;" onclick="saveUser('{{ user[0] }}', this)" title="保存修改">保存</button>
+            <button type="button" class="btn btn-delete btn-sm" style="min-width: 80px;" onclick="deleteUser('{{ user[0] }}', this)" title="删除用户">删除用户</button>
           </td>
         </tr>
         {% endfor %}
@@ -217,7 +223,6 @@ async function deleteUser(userId, btn) {
     </table>
   </div>
 
-  <!-- 分页 -->
   <nav aria-label="分页">
     <ul class="pagination justify-content-center">
       <li class="page-item {% if stats.page == 1 %}disabled{% endif %}">
