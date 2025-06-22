@@ -131,8 +131,8 @@ def dashboard():
 
             c.execute(f"""
                 SELECT u.user_id, u.first_name, u.last_name, u.username, u.phone, u.points, u.plays,
-                       u.created_at, u.last_play, u.invited_by, u.is_blocked,
-                       i.username as inviter_username
+                       u.created_at, u.last_play, u.invited_by, u.is_blocked, i.username as inviter_username,
+                       COALESCE((SELECT COUNT(*) FROM users u2 WHERE u2.invited_by = u.user_id), 0) AS invite_count
                 FROM users u
                 LEFT JOIN users i ON u.invited_by = i.user_id
                 {where_sql}
