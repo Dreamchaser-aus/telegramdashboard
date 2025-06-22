@@ -46,6 +46,7 @@
         <th>手机号</th>
         <th>积分</th>
         <th>今日游戏次数</th>
+        <th>邀请人</th>
         <th>已邀请</th>
         <th>封禁状态</th>
         <th>注册时间</th>
@@ -66,19 +67,18 @@
         <td contenteditable="true">{{ user[6] }}</td>
         <td>
           {% if user[9] and user[11] %}
-            <!-- 有邀请人，显示邀请人用户名和查看按钮 -->
             <a href="/invitees?user_id={{ user[9] }}" style="color:#0d6efd; text-decoration: underline; cursor: pointer;">
               {{ user[11] }}
             </a>
-            <br/>
-            <a href="/invitees?user_id={{ user[9] }}" class="btn btn-sm btn-primary mt-1">查看邀请用户</a>
           {% else %}
-            <!-- 无邀请人，显示已邀请人数和查看按钮（有邀请人数才显示按钮） -->
-            已邀请 {{ user[12] }} 人
-            <br/>
-            {% if user[12] > 0 %}
-              <a href="/invitees?user_id={{ user[0] }}" class="btn btn-sm btn-primary mt-1">查看邀请用户</a>
-            {% endif %}
+            无
+          {% endif %}
+        </td>
+        <td>
+          已邀请 {{ user[12] }} 人
+          <br/>
+          {% if user[12] > 0 %}
+            <a href="/invitees?user_id={{ user[0] }}" class="btn btn-sm btn-primary mt-1">查看邀请用户</a>
           {% endif %}
         </td>
         <td>
@@ -96,7 +96,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="10" class="text-center">无用户数据</td></tr>
+      <tr><td colspan="11" class="text-center">无用户数据</td></tr>
       {% endfor %}
     </tbody>
   </table>
