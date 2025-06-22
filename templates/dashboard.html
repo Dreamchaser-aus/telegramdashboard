@@ -105,25 +105,17 @@
 </div>
 
 <script>
-  // 调试日志输出，方便定位
-  function debugLog(...args) {
-    if (window.console) console.log(...args);
-  }
-
-  // 封禁状态更新
+  // 封禁状态更新，使用 JSON 格式请求匹配后端 get_json()
   document.querySelectorAll('.block-status').forEach(select => {
     select.addEventListener('change', async function() {
       const tr = this.closest('tr');
       const userId = tr.getAttribute('data-user-id');
       const isBlocked = this.value;
-      debugLog('封禁状态变更:', { userId, isBlocked });
       try {
-        const formData = new FormData();
-        formData.append('user_id', userId);
-        formData.append('is_blocked', isBlocked);
         const res = await fetch('/update_block_status', {
           method: 'POST',
-          body: formData
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ user_id: userId, is_blocked: isBlocked })
         });
         if (!res.ok) throw new Error('更新失败');
         alert('封禁状态已更新');
@@ -133,7 +125,7 @@
     });
   });
 
-  // 保存按钮事件
+  // 保存按钮事件，发送 form-data
   document.querySelectorAll('.save-btn').forEach(button => {
     button.addEventListener('click', async function() {
       const tr = this.closest('tr');
@@ -141,7 +133,6 @@
       const points = tr.querySelector('.points-input').value;
       const plays = tr.querySelector('.plays-input').value;
       const isBlocked = tr.querySelector('.block-status').value;
-      debugLog('保存用户数据:', { userId, points, plays, isBlocked });
       try {
         const formData = new FormData();
         formData.append('user_id', userId);
@@ -160,13 +151,12 @@
     });
   });
 
-  // 删除按钮事件
+  // 删除按钮事件，发送 form-data
   document.querySelectorAll('.delete-btn').forEach(button => {
     button.addEventListener('click', async function() {
       if (!confirm('确定要删除该用户吗？此操作不可撤销。')) return;
       const tr = this.closest('tr');
       const userId = tr.getAttribute('data-user-id');
-      debugLog('删除用户:', userId);
       try {
         const formData = new FormData();
         formData.append('user_id', userId);
