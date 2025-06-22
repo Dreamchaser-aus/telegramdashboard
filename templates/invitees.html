@@ -27,13 +27,13 @@
       <tbody>
         {% for user in invitees %}
         <tr>
-          <td>{{ user.user_id }}</td>
-          <td>{{ user.username or '无用户名' }}</td>
-          <td>{{ user.phone or '未授权' }}</td>
-          <td>{{ user.points }}</td>
-          <td>{{ user.plays }}</td>
-          <td>{{ user.created_at|format_datetime }}</td>
-          <td>{{ user.last_play|format_datetime or '未知' }}</td>
+          <td>{{ user[0] }}</td> <!-- user_id -->
+          <td>{{ user[1] or '无用户名' }}</td> <!-- username -->
+          <td>{{ user[2] or '未授权' }}</td> <!-- phone -->
+          <td>{{ user[3] }}</td> <!-- points -->
+          <td>{{ user[4] }}</td> <!-- plays -->
+          <td>{{ user[5]|format_datetime }}</td> <!-- created_at -->
+          <td>{{ user[6]|format_datetime or '未知' }}</td> <!-- last_play -->
         </tr>
         {% endfor %}
       </tbody>
