@@ -44,10 +44,16 @@
     width: 80px;
     margin: auto;
   }
+  /* 操作列宽度和按钮样式调整 */
+  .table tbody td:last-child {
+    min-width: 170px;
+    white-space: nowrap;
+  }
   .btn-save {
     background-color: #198754;
     color: white;
     margin-right: 6px;
+    white-space: nowrap;
   }
   .btn-save:hover {
     background-color: #146c43;
@@ -56,6 +62,8 @@
   .btn-delete {
     background-color: #dc3545;
     color: white;
+    margin-left: 6px;
+    white-space: nowrap;
   }
   .btn-delete:hover {
     background-color: #b02a37;
@@ -65,6 +73,7 @@
     background-color: #0dcaf0;
     color: white;
     margin-right: 6px;
+    white-space: nowrap;
   }
   .btn-record:hover {
     background-color: #31d2f2;
@@ -83,7 +92,6 @@
     justify-content: center;
     margin-top: 10px;
   }
-  /* 表格单元格悬浮显示完整内容 */
   td[title] {
     cursor: help;
   }
