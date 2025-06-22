@@ -105,12 +105,18 @@
 </div>
 
 <script>
+  // 调试日志输出，方便定位
+  function debugLog(...args) {
+    if (window.console) console.log(...args);
+  }
+
   // 封禁状态更新
   document.querySelectorAll('.block-status').forEach(select => {
     select.addEventListener('change', async function() {
       const tr = this.closest('tr');
       const userId = tr.getAttribute('data-user-id');
       const isBlocked = this.value;
+      debugLog('封禁状态变更:', { userId, isBlocked });
       try {
         const formData = new FormData();
         formData.append('user_id', userId);
@@ -135,6 +141,7 @@
       const points = tr.querySelector('.points-input').value;
       const plays = tr.querySelector('.plays-input').value;
       const isBlocked = tr.querySelector('.block-status').value;
+      debugLog('保存用户数据:', { userId, points, plays, isBlocked });
       try {
         const formData = new FormData();
         formData.append('user_id', userId);
@@ -159,6 +166,7 @@
       if (!confirm('确定要删除该用户吗？此操作不可撤销。')) return;
       const tr = this.closest('tr');
       const userId = tr.getAttribute('data-user-id');
+      debugLog('删除用户:', userId);
       try {
         const formData = new FormData();
         formData.append('user_id', userId);
