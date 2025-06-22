@@ -72,14 +72,14 @@
           {{ user[3] or '无用户名' }}<br/>
           <small>{{ user[1] or '' }} {{ user[2] or '' }}</small>
         </td>
-        <td>{{ user[12] or '未授权' }}</td>
+        <td>{{ user[4] or '未授权' }}</td>  <!-- 这里修正了手机号字段索引 -->
         <td>
           <input type="number" class="form-control form-control-sm points-input" value="{{ user[5] }}" min="0" style="width: 80px;" />
         </td>
         <td>
           <input type="number" class="form-control form-control-sm plays-input" value="{{ user[6] }}" min="0" style="width: 80px;" />
         </td>
-        <td>{{ user[11] or '无' }}</td>
+        <td>{{ user[12] or '无' }}</td>
         <td>
           <select class="form-select form-select-sm block-status" style="width: 70px;">
             <option value="0" {% if not user[10] %}selected{% endif %}>否</option>
