@@ -6,12 +6,87 @@
 <title>用户管理后台</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
 <style>
-  body { padding: 20px; }
-  .stats { background-color: #d1ecf1; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
-  .table thead th { background-color: #212529; color: white; }
-  .btn-save { background-color: #198754; color: white; }
-  .btn-delete { background-color: #dc3545; color: white; }
-  .btn-record { background-color: #0dcaf0; color: white; }
+  body {
+    padding: 20px;
+    background-color: #f8f9fa;
+  }
+  .stats {
+    background-color: #d1ecf1;
+    padding: 15px 25px;
+    border-radius: 8px;
+    margin-bottom: 25px;
+    font-weight: 500;
+    color: #0c5460;
+    box-shadow: 0 0 8px rgba(13, 110, 253, 0.1);
+  }
+  .table thead th {
+    background-color: #212529;
+    color: white;
+    vertical-align: middle;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .table tbody td {
+    vertical-align: middle;
+    text-align: center;
+    max-width: 120px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .table tbody td.username,
+  .table tbody td.phone,
+  .table tbody td.inviter {
+    max-width: 180px;
+    text-align: left;
+  }
+  input.form-control, select.form-select {
+    width: 80px;
+    margin: auto;
+  }
+  .btn-save {
+    background-color: #198754;
+    color: white;
+    margin-right: 6px;
+  }
+  .btn-save:hover {
+    background-color: #146c43;
+    color: white;
+  }
+  .btn-delete {
+    background-color: #dc3545;
+    color: white;
+  }
+  .btn-delete:hover {
+    background-color: #b02a37;
+    color: white;
+  }
+  .btn-record {
+    background-color: #0dcaf0;
+    color: white;
+    margin-right: 6px;
+  }
+  .btn-record:hover {
+    background-color: #31d2f2;
+    color: white;
+  }
+  .form-inline {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .form-inline input[type="text"] {
+    width: 280px;
+  }
+  .pagination {
+    justify-content: center;
+    margin-top: 10px;
+  }
+  /* 表格单元格悬浮显示完整内容 */
+  td[title] {
+    cursor: help;
+  }
 </style>
 <script>
 async function updateBlockStatus(userId, selectElem) {
@@ -77,63 +152,65 @@ async function deleteUser(userId, btn) {
 
 <div class="container">
 
-  <form method="get" class="mb-3 d-flex gap-2">
-    <input type="text" name="keyword" placeholder="模糊搜索用户名或手机号" class="form-control" value="{{ keyword }}">
+  <form method="get" class="form-inline">
+    <input type="text" name="keyword" placeholder="模糊搜索用户名或手机号" class="form-control" value="{{ keyword }}" title="输入用户名或手机号模糊搜索">
     <button type="submit" class="btn btn-primary">搜索</button>
     <a href="/rank_data" class="btn btn-success" target="_blank">查看今日排行榜</a>
   </form>
 
-  <div class="stats">
+  <div class="stats" title="统计信息">
     总用户数: {{ stats.total_users }} | 已授权手机号: {{ stats.authorized_users }} | 已封禁用户: {{ stats.blocked_users }} | 总积分: {{ stats.total_points }}
   </div>
 
-  <table class="table table-bordered table-hover align-middle">
-    <thead>
-      <tr>
-        <th>用户ID</th>
-        <th>用户名</th>
-        <th>手机号</th>
-        <th>积分</th>
-        <th>今日游戏次数</th>
-        <th>邀请人</th>
-        <th>封禁状态</th>
-        <th>注册时间</th>
-        <th>最后游戏时间</th>
-        <th>操作</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for user in users %}
-      <tr>
-        <td>{{ user[0] }}</td> <!-- user_id -->
-        <td>{{ user[3] }}</td> <!-- username -->
-        <td>{{ user[4] if user[4] else '未授权' }}</td> <!-- phone -->
-        <td><input type="number" class="form-control points-input" value="{{ user[5] }}"></td> <!-- points -->
-        <td><input type="number" class="form-control plays-input" value="{{ user[6] }}"></td> <!-- plays -->
-        <td>{{ user[12] if user[12] else '无' }}</td> <!-- inviter_username -->
-        <td>
-          <select class="form-select block-select" onchange="updateBlockStatus('{{ user[0] }}', this)">
-            <option value="否" {% if not user[11] %}selected{% endif %}>否</option>
-            <option value="是" {% if user[11] %}selected{% endif %}>是</option>
-          </select>
-        </td>
-        <td>{{ user[7] }}</td> <!-- created_at -->
-        <td>{{ user[8] if user[8] else '无' }}</td> <!-- last_play -->
-        <td>
-          <button type="button" class="btn btn-record btn-sm" onclick="window.open('/game_history?user_id={{ user[0] }}', '_blank')">查看游戏记录</button>
-          <button type="button" class="btn btn-save btn-sm" onclick="saveUser('{{ user[0] }}', this)">保存</button>
-          <button type="button" class="btn btn-delete btn-sm" onclick="deleteUser('{{ user[0] }}', this)">删除用户</button>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="table-responsive">
+    <table class="table table-bordered table-hover align-middle">
+      <thead>
+        <tr>
+          <th>用户ID</th>
+          <th>用户名</th>
+          <th>手机号</th>
+          <th>积分</th>
+          <th>今日游戏次数</th>
+          <th>邀请人</th>
+          <th>封禁状态</th>
+          <th>注册时间</th>
+          <th>最后游戏时间</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr>
+          <td title="{{ user[0] }}">{{ user[0] }}</td>
+          <td class="username" title="{{ user[3] }}">{{ user[3] }}</td>
+          <td class="phone" title="{{ user[4] if user[4] else '未授权' }}">{{ user[4] if user[4] else '未授权' }}</td>
+          <td><input type="number" class="form-control points-input" value="{{ user[5] }}" title="编辑积分"></td>
+          <td><input type="number" class="form-control plays-input" value="{{ user[6] }}" title="编辑今日游戏次数"></td>
+          <td class="inviter" title="{{ user[12] if user[12] else '无' }}">{{ user[12] if user[12] else '无' }}</td>
+          <td>
+            <select class="form-select block-select" onchange="updateBlockStatus('{{ user[0] }}', this)" title="修改封禁状态">
+              <option value="否" {% if not user[11] %}selected{% endif %}>否</option>
+              <option value="是" {% if user[11] %}selected{% endif %}>是</option>
+            </select>
+          </td>
+          <td title="{{ user[7] }}">{{ user[7] }}</td>
+          <td title="{{ user[8] if user[8] else '无' }}">{{ user[8] if user[8] else '无' }}</td>
+          <td>
+            <button type="button" class="btn btn-record btn-sm" onclick="window.open('/game_history?user_id={{ user[0] }}', '_blank')" title="查看游戏记录">查看游戏记录</button>
+            <button type="button" class="btn btn-save btn-sm" onclick="saveUser('{{ user[0] }}', this)" title="保存修改">保存</button>
+            <button type="button" class="btn btn-delete btn-sm" onclick="deleteUser('{{ user[0] }}', this)" title="删除用户">删除用户</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 
   <!-- 分页 -->
   <nav aria-label="分页">
-    <ul class="pagination justify-content-center">
+    <ul class="pagination">
       <li class="page-item {% if stats.page == 1 %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page - 1 }}&keyword={{ keyword }}">上一页</a>
+        <a class="page-link" href="?page={{ stats.page - 1 }}&keyword={{ keyword }}" tabindex="-1">上一页</a>
       </li>
       <li class="page-item disabled">
         <a class="page-link" href="#">{{ stats.page }} / {{ stats.total_pages }}</a>
@@ -145,6 +222,8 @@ async function deleteUser(userId, btn) {
   </nav>
 
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 </body>
 </html>
