@@ -76,7 +76,7 @@
             <!-- 无邀请人，显示自己邀请人数和查看按钮（有邀请人数才显示按钮） -->
             {{ user[13] }} 人
             <br/>
-            {% if user[13] > 0 %}
+            {% if user[12] > 0 %}
               <a href="/invitees?user_id={{ user[0] }}" class="btn btn-sm btn-primary mt-1">查看邀请用户</a>
             {% endif %}
           {% endif %}
