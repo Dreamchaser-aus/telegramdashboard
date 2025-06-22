@@ -12,7 +12,7 @@
   <!-- 搜索表单 -->
   <form method="get" class="row g-3 mb-3">
     <div class="col-md-6">
-      <input type="text" name="q" class="form-control" placeholder="用户名、手机号或邀请人用户名" value="{{ q or '' }}" />
+      <input type="text" name="keyword" class="form-control" placeholder="用户名、手机号或邀请人用户名" value="{{ keyword or '' }}" />
     </div>
     <div class="col-md-2">
       <select name="authorized" class="form-select">
@@ -72,18 +72,18 @@
           {{ user[3] or '无用户名' }}<br/>
           <small>{{ user[1] or '' }} {{ user[2] or '' }}</small>
         </td>
-        <td>{{ user[4] or '未授权' }}</td>
+        <td>{{ user[12] or '未授权' }}</td>
         <td>
           <input type="number" class="form-control form-control-sm points-input" value="{{ user[5] }}" min="0" style="width: 80px;" />
         </td>
         <td>
           <input type="number" class="form-control form-control-sm plays-input" value="{{ user[6] }}" min="0" style="width: 80px;" />
         </td>
-        <td>{{ user[12] or '无' }}</td>
+        <td>{{ user[11] or '无' }}</td>
         <td>
           <select class="form-select form-select-sm block-status" style="width: 70px;">
-            <option value="0" {% if not user[11] %}selected{% endif %}>否</option>
-            <option value="1" {% if user[11] %}selected{% endif %}>是</option>
+            <option value="0" {% if not user[10] %}selected{% endif %}>否</option>
+            <option value="1" {% if user[10] %}selected{% endif %}>是</option>
           </select>
         </td>
         <td>{{ user[7] }}</td>
@@ -104,13 +104,13 @@
   <nav aria-label="分页导航" class="d-flex justify-content-center">
     <ul class="pagination">
       <li class="page-item {% if stats.page <= 1 %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page - 1 }}&q={{ q or '' }}&authorized={{ is_authorized or '' }}">上一页</a>
+        <a class="page-link" href="?page={{ stats.page - 1 }}&keyword={{ keyword or '' }}&authorized={{ is_authorized or '' }}">上一页</a>
       </li>
       <li class="page-item disabled">
         <a class="page-link" href="#">{{ stats.page }} / {{ stats.total_pages }}</a>
       </li>
       <li class="page-item {% if stats.page >= stats.total_pages %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page + 1 }}&q={{ q or '' }}&authorized={{ is_authorized or '' }}">下一页</a>
+        <a class="page-link" href="?page={{ stats.page + 1 }}&keyword={{ keyword or '' }}&authorized={{ is_authorized or '' }}">下一页</a>
       </li>
     </ul>
   </nav>
@@ -118,7 +118,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  // 弹窗和排行榜加载
+  // 排行榜弹窗逻辑
   const rankModal = new bootstrap.Modal(document.getElementById('rankModal'));
   const rankList = document.getElementById('rank-list');
   document.getElementById('show-rank-btn').addEventListener('click', async () => {
@@ -148,7 +148,7 @@
     }
   });
 
-  // 封禁状态更新，JSON格式请求匹配后端
+  // 封禁状态更新，调用后端API
   document.querySelectorAll('.block-status').forEach(select => {
     select.addEventListener('change', async function() {
       const tr = this.closest('tr');
@@ -168,7 +168,7 @@
     });
   });
 
-  // 保存按钮事件，发送form-data
+  // 保存按钮事件，提交表单数据
   document.querySelectorAll('.save-btn').forEach(button => {
     button.addEventListener('click', async function() {
       const tr = this.closest('tr');
@@ -194,7 +194,7 @@
     });
   });
 
-  // 删除按钮事件，发送form-data
+  // 删除按钮事件，删除后移除行
   document.querySelectorAll('.delete-btn').forEach(button => {
     button.addEventListener('click', async function() {
       if (!confirm('确定要删除该用户吗？此操作不可撤销。')) return;
