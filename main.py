@@ -171,6 +171,31 @@ def dashboard():
     except Exception as e:
         import traceback
         return f"<pre>出错了：\n{traceback.format_exc()}</pre>"
+
+@app.route("/invitees")
+def invitees():
+    inviter_id = request.args.get("user_id")
+    if not inviter_id:
+        return "缺少邀请人 user_id 参数", 400
+
+    with get_conn() as conn, conn.cursor() as c:
+        c.execute("""
+            SELECT user_id, username, phone, points, created_at
+            FROM users WHERE invited_by = %s
+            ORDER BY created_at DESC
+        """, (inviter_id,))
+        invitees = c.fetchall()
+
+        # 查询邀请人用户名，方便页面显示
+        c.execute("SELECT username FROM users WHERE user_id = %s", (inviter_id,))
+        inviter_username = c.fetchone()
+        inviter_username = inviter_username[0] if inviter_username else "未知"
+
+    return render_template("invitees.html",
+                           invitees=invitees,
+                           inviter_username=inviter_username,
+                           inviter_id=inviter_id)
+        
     
 @app.route("/update_block_status", methods=["POST"])
 def update_block_status():
