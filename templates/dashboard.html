@@ -55,18 +55,22 @@
     </thead>
     <tbody>
       {% for user in users %}
-      <tr>
+      <tr data-user-id="{{ user[0] }}">
         <td>{{ user[0] }}</td>
         <td>
           {{ user[3] or '无用户名' }}<br/>
           <small>{{ user[1] or '' }} {{ user[2] or '' }}</small>
         </td>
         <td>{{ user[4] or '未授权' }}</td>
-        <td>{{ user[5] }}</td>
-        <td>{{ user[6] }}</td>
+        <td>
+          <input type="number" class="form-control form-control-sm points-input" value="{{ user[5] }}" min="0" style="width: 80px;" />
+        </td>
+        <td>
+          <input type="number" class="form-control form-control-sm plays-input" value="{{ user[6] }}" min="0" style="width: 80px;" />
+        </td>
         <td>{{ user[11] or '无' }}</td>
         <td>
-          <select class="form-select form-select-sm block-status" data-user-id="{{ user[0] }}">
+          <select class="form-select form-select-sm block-status" style="width: 70px;" data-user-id="{{ user[0] }}">
             <option value="0" {% if not user[10] %}selected{% endif %}>否</option>
             <option value="1" {% if user[10] %}selected{% endif %}>是</option>
           </select>
@@ -74,6 +78,8 @@
         <td>{{ user[7] }}</td>
         <td>{{ user[8] or '未知' }}</td>
         <td>
+          <button class="btn btn-sm btn-success save-btn">保存</button>
+          <button class="btn btn-sm btn-danger delete-btn">删除</button>
           <a href="/game_history?user_id={{ user[0] }}" class="btn btn-sm btn-info">查看游戏记录</a>
         </td>
       </tr>
@@ -99,23 +105,66 @@
 </div>
 
 <script>
-document.querySelectorAll('.block-status').forEach(select => {
-  select.addEventListener('change', async function() {
-    const userId = this.getAttribute('data-user-id');
-    const isBlocked = this.value;
-    try {
-      const res = await fetch('/update_block_status', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ user_id: userId, is_blocked: isBlocked })
-      });
-      if (!res.ok) throw new Error('更新失败');
-      alert('封禁状态已更新');
-    } catch (e) {
-      alert('更新封禁状态失败');
-    }
+  // 封禁状态更新
+  document.querySelectorAll('.block-status').forEach(select => {
+    select.addEventListener('change', async function() {
+      const userId = this.getAttribute('data-user-id');
+      const isBlocked = this.value;
+      try {
+        const res = await fetch('/update_block_status', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ user_id: userId, is_blocked: isBlocked })
+        });
+        if (!res.ok) throw new Error('更新失败');
+        alert('封禁状态已更新');
+      } catch (e) {
+        alert('更新封禁状态失败');
+      }
+    });
   });
-});
+
+  // 保存按钮事件
+  document.querySelectorAll('.save-btn').forEach(button => {
+    button.addEventListener('click', async function() {
+      const tr = this.closest('tr');
+      const userId = tr.getAttribute('data-user-id');
+      const points = tr.querySelector('.points-input').value;
+      const plays = tr.querySelector('.plays-input').value;
+      try {
+        const res = await fetch('/update_user', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ user_id: userId, points: Number(points), plays: Number(plays) })
+        });
+        if (!res.ok) throw new Error('保存失败');
+        alert('用户数据已保存');
+      } catch (e) {
+        alert('保存用户数据失败');
+      }
+    });
+  });
+
+  // 删除按钮事件
+  document.querySelectorAll('.delete-btn').forEach(button => {
+    button.addEventListener('click', async function() {
+      if (!confirm('确定要删除该用户吗？此操作不可撤销。')) return;
+      const tr = this.closest('tr');
+      const userId = tr.getAttribute('data-user-id');
+      try {
+        const res = await fetch('/delete_user', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ user_id: userId })
+        });
+        if (!res.ok) throw new Error('删除失败');
+        alert('用户已删除');
+        tr.remove();
+      } catch (e) {
+        alert('删除用户失败');
+      }
+    });
+  });
 </script>
 </body>
 </html>
