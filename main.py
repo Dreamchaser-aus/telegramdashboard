@@ -324,6 +324,11 @@ async def help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     inviter_id = int(context.args[0]) if context.args else None
+    
+    # 防止自己邀请自己
+    if inviter_id == user.id:
+        inviter_id = None
+
     with get_conn() as conn, conn.cursor() as c:
         c.execute("SELECT 1 FROM users WHERE user_id = %s", (user.id,))
         if not c.fetchone():
