@@ -66,21 +66,25 @@
         <td contenteditable="true">{{ user[6] }}</td>
         <td>
           {% if user[9] and user[11] %}
+            <!-- 有邀请人，显示邀请人用户名和查看按钮 -->
             <a href="/invitees?user_id={{ user[9] }}" style="color:#0d6efd; text-decoration: underline; cursor: pointer;">
               {{ user[11] }}
             </a>
-          {% else %}
-            {{ user[13] }} 人
-          {% endif %}
-          <br/>
-          {% if user[9] %}
+            <br/>
             <a href="/invitees?user_id={{ user[9] }}" class="btn btn-sm btn-primary mt-1">查看邀请用户</a>
+          {% else %}
+            <!-- 无邀请人，显示自己邀请人数和查看按钮（有邀请人数才显示按钮） -->
+            {{ user[13] }} 人
+            <br/>
+            {% if user[13] > 0 %}
+              <a href="/invitees?user_id={{ user[0] }}" class="btn btn-sm btn-primary mt-1">查看邀请用户</a>
+            {% endif %}
           {% endif %}
         </td>
         <td>
           <select class="form-select form-select-sm block-status" style="width: 70px;">
-            <option value="0" {% if not user[11] %}selected{% endif %}>否</option>
-            <option value="1" {% if user[11] %}selected{% endif %}>是</option>
+            <option value="0" {% if not user[10] %}selected{% endif %}>否</option>
+            <option value="1" {% if user[10] %}selected{% endif %}>是</option>
           </select>
         </td>
         <td>{{ user[7]|format_datetime }}</td>
