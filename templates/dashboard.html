@@ -45,15 +45,19 @@
     margin: auto;
   }
   /* 操作列宽度和按钮样式调整 */
-  .table tbody td:last-child {
-    min-width: 170px;
-    white-space: nowrap;
+  .table tbody td.actions-cell {
+    min-width: 250px !important;
+    white-space: nowrap !important;
+  }
+  .table tbody td.actions-cell button {
+    white-space: nowrap !important;
+    margin: 0 5px;
+    padding: 3px 12px;
+    font-size: 0.85rem;
   }
   .btn-save {
     background-color: #198754;
     color: white;
-    margin-right: 6px;
-    white-space: nowrap;
   }
   .btn-save:hover {
     background-color: #146c43;
@@ -62,8 +66,6 @@
   .btn-delete {
     background-color: #dc3545;
     color: white;
-    margin-left: 6px;
-    white-space: nowrap;
   }
   .btn-delete:hover {
     background-color: #b02a37;
@@ -72,8 +74,6 @@
   .btn-record {
     background-color: #0dcaf0;
     color: white;
-    margin-right: 6px;
-    white-space: nowrap;
   }
   .btn-record:hover {
     background-color: #31d2f2;
@@ -203,7 +203,7 @@ async function deleteUser(userId, btn) {
           </td>
           <td title="{{ user[7] }}">{{ user[7] }}</td>
           <td title="{{ user[8] if user[8] else '无' }}">{{ user[8] if user[8] else '无' }}</td>
-          <td>
+          <td class="actions-cell">
             <button type="button" class="btn btn-record btn-sm" onclick="window.open('/game_history?user_id={{ user[0] }}', '_blank')" title="查看游戏记录">查看游戏记录</button>
             <button type="button" class="btn btn-save btn-sm" onclick="saveUser('{{ user[0] }}', this)" title="保存修改">保存</button>
             <button type="button" class="btn btn-delete btn-sm" onclick="deleteUser('{{ user[0] }}', this)" title="删除用户">删除用户</button>
