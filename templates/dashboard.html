@@ -9,6 +9,7 @@
 <div class="container py-4">
   <h1 class="mb-4">Telegram 用户后台管理</h1>
 
+  <!-- 搜索表单 -->
   <form method="get" class="row g-3 mb-3">
     <div class="col-md-3">
       <input type="text" name="keyword" class="form-control" placeholder="用户名或手机号" value="{{ keyword or '' }}" />
@@ -31,13 +32,15 @@
     </div>
   </form>
 
-  <div class="alert alert-info">
-    总用户数: {{ stats.total_users }} |
-    已授权手机号: {{ stats.authorized_users }} |
-    已封禁用户: {{ stats.blocked_users }} |
-    总积分: {{ stats.total_points }}
+  <!-- 新增每日排行榜 -->
+  <div class="mb-4">
+    <h3>🎖️ 今日积分排行榜</h3>
+    <ul id="rank-list" class="list-group" style="max-width: 400px;">
+      <li class="list-group-item">加载中...</li>
+    </ul>
   </div>
 
+  <!-- 用户数据表格 -->
   <table class="table table-bordered table-striped align-middle">
     <thead class="table-dark">
       <tr>
@@ -89,6 +92,7 @@
     </tbody>
   </table>
 
+  <!-- 分页导航 -->
   <nav aria-label="分页导航" class="d-flex justify-content-center">
     <ul class="pagination">
       <li class="page-item {% if stats.page <= 1 %}disabled{% endif %}">
@@ -105,6 +109,37 @@
 </div>
 
 <script>
+  // 每日积分排行榜加载
+  async function loadRank() {
+    try {
+      const res = await fetch('/rank_data');
+      if (!res.ok) throw new Error('获取排行榜失败');
+      const data = await res.json();
+      const rankList = document.getElementById('rank-list');
+      rankList.innerHTML = ''; // 清空内容
+
+      if (data.length === 0) {
+        rankList.innerHTML = '<li class="list-group-item">暂无数据</li>';
+        return;
+      }
+
+      const medals = ["🥇", "🥈", "🥉"];
+      data.forEach((user, i) => {
+        const medal = medals[i] || '🎖️';
+        const username = user.username || user.first_name || '匿名';
+        const li = document.createElement('li');
+        li.className = 'list-group-item d-flex justify-content-between align-items-center';
+        li.textContent = `${medal} ${username} — ${user.points} 分`;
+        rankList.appendChild(li);
+      });
+    } catch (e) {
+      const rankList = document.getElementById('rank-list');
+      rankList.innerHTML = `<li class="list-group-item text-danger">加载失败，请刷新页面</li>`;
+      console.error(e);
+    }
+  }
+
+  // 封禁状态更新，JSON格式请求匹配后端
   document.querySelectorAll('.block-status').forEach(select => {
     select.addEventListener('change', async function() {
       const tr = this.closest('tr');
@@ -124,6 +159,7 @@
     });
   });
 
+  // 保存按钮事件，发送form-data
   document.querySelectorAll('.save-btn').forEach(button => {
     button.addEventListener('click', async function() {
       const tr = this.closest('tr');
@@ -149,6 +185,7 @@
     });
   });
 
+  // 删除按钮事件，发送form-data
   document.querySelectorAll('.delete-btn').forEach(button => {
     button.addEventListener('click', async function() {
       if (!confirm('确定要删除该用户吗？此操作不可撤销。')) return;
@@ -169,6 +206,9 @@
       }
     });
   });
+
+  // 页面加载完毕后加载排行榜
+  document.addEventListener('DOMContentLoaded', loadRank);
 </script>
 </body>
 </html>
