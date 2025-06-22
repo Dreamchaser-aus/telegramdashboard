@@ -55,7 +55,6 @@ def init_db():
                 created_at TEXT,
                 last_play TEXT,
                 invited_by BIGINT,
-                inviter_rewarded INTEGER DEFAULT 0,
                 is_blocked INTEGER DEFAULT 0
             );
         ''')
@@ -395,19 +394,34 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def reward_inviter(user_id, context):
     try:
         with get_conn() as conn, conn.cursor() as c:
-            c.execute("SELECT invited_by, phone, inviter_rewarded, plays FROM users WHERE user_id = %s", (user_id,))
+            c.execute("SELECT invited_by, plays FROM users WHERE user_id = %s", (user_id,))
             row = c.fetchone()
-            if row:
-                inviter, phone, rewarded, plays = row
-                if inviter and phone and not rewarded and plays > 0:
+            if not row:
+                return
+            inviter, plays = row
+            if inviter and plays > 0:
+                # 检查是否已有奖励发放记录
+                c.execute("SELECT reward_given FROM invite_rewards WHERE inviter = %s AND invitee = %s", (inviter, user_id))
+                reward_row = c.fetchone()
+
+                if reward_row is None:
+                    # 还没有记录，插入一条未发放奖励记录
+                    c.execute("INSERT INTO invite_rewards (inviter, invitee, reward_given) VALUES (%s, %s, FALSE)", (inviter, user_id))
+                    conn.commit()
+                    reward_row = (False,)
+
+                if reward_row[0] is False:
+                    # 发放积分奖励
                     c.execute("UPDATE users SET points = points + 10 WHERE user_id = %s RETURNING points", (inviter,))
                     inviter_points = c.fetchone()[0]
-                    c.execute("UPDATE users SET inviter_rewarded = 1 WHERE user_id = %s", (user_id,))
+                    # 标记奖励已发放
+                    c.execute("UPDATE invite_rewards SET reward_given = TRUE WHERE inviter = %s AND invitee = %s", (inviter, user_id))
                     conn.commit()
+
                     try:
                         await context.bot.send_message(
                             chat_id=inviter,
-                            text=(f"🎉 你邀请的用户成功参与游戏，获得 +10 积分奖励！\n🏆 当前总积分：{inviter_points}\n继续邀请更多好友，积分越多越精彩！")
+                            text=f"🎉 你邀请的用户成功参与游戏，获得 +10 积分奖励！\n🏆 当前总积分：{inviter_points}\n继续邀请更多好友，积分越多越精彩！"
                         )
                     except Exception:
                         logging.warning(f"邀请积分通知发送失败，邀请人ID: {inviter}")
