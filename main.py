@@ -348,7 +348,35 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_lang = update.effective_user.language_code or 'zh'
-    await send_game_rules(update.message.chat_id, context.bot, user_lang)
+    if user_lang.startswith('en'):
+        help_text = (
+            "🤖 Available commands:\n\n"
+            "/start - Start and authorize your phone number\n"
+            "/help - Show this help message\n"
+            "/profile - View your points and today's play count\n"
+            "/invite - Get your invite link\n"
+            "/rank - Today's points leaderboard\n"
+            "/share - Share your invite link\n\n"
+            "🎲 Roll dice in group chat to start playing, up to 10 times a day.\n"
+            "📱 Phone authorization required before playing.\n"
+            "🏆 Invite friends to earn bonus points!\n"
+            "\nHave fun!"
+        )
+    else:
+        help_text = (
+            "🤖 可用命令列表：\n\n"
+            "/start - 开始使用机器人，授权手机号\n"
+            "/help - 显示此帮助信息\n"
+            "/profile - 查看个人积分和今日游戏次数\n"
+            "/invite - 获取你的专属邀请链接\n"
+            "/rank - 查看今日积分排行榜\n"
+            "/share - 分享邀请链接\n\n"
+            "🎲 在群组中发送骰子即可开始游戏，最多每天10次\n"
+            "📱 需要先授权手机号才能参与游戏\n"
+            "🏆 邀请好友可以获得积分奖励\n"
+            "\n祝你游戏愉快！"
+        )
+    await update.message.reply_text(help_text)
 
 async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
