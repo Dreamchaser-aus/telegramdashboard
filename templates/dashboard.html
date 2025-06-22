@@ -9,46 +9,29 @@
 <div class="container py-4">
   <h1 class="mb-4">Telegram 用户后台管理</h1>
 
-  <!-- 搜索表单 -->
   <form method="get" class="row g-3 mb-3">
     <div class="col-md-6">
-      <input type="text" name="keyword" class="form-control" placeholder="用户名、手机号或邀请人用户名" value="{{ keyword or '' }}" />
+      <input type="text" name="keyword" class="form-control" placeholder="用户名 / 手机号 / 邀请人用户名" value="{{ keyword or '' }}" />
     </div>
-    <div class="col-md-2">
+    <div class="col-md-3">
       <select name="authorized" class="form-select">
         <option value="" {% if not is_authorized %}selected{% endif %}>全部</option>
         <option value="1" {% if is_authorized == '1' %}selected{% endif %}>已授权手机号</option>
         <option value="0" {% if is_authorized == '0' %}selected{% endif %}>未授权手机号</option>
       </select>
     </div>
-    <div class="col-md-2">
+    <div class="col-md-3">
       <button type="submit" class="btn btn-primary w-100">搜索</button>
     </div>
   </form>
 
-  <!-- 排行榜按钮 -->
-  <div class="mb-4">
-    <button id="show-rank-btn" class="btn btn-info">查看今日积分排行榜</button>
+  <div class="alert alert-info">
+    总用户数: {{ stats.total_users }} |
+    已授权手机号: {{ stats.authorized_users }} |
+    已封禁用户: {{ stats.blocked_users }} |
+    总积分: {{ stats.total_points }}
   </div>
 
-  <!-- 排行榜模态框 -->
-  <div class="modal fade" id="rankModal" tabindex="-1" aria-labelledby="rankModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="rankModalLabel">🎖️ 今日积分排行榜</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
-        </div>
-        <div class="modal-body">
-          <ul id="rank-list" class="list-group">
-            <li class="list-group-item">加载中...</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 用户数据表格 -->
   <table class="table table-bordered table-striped align-middle">
     <thead class="table-dark">
       <tr>
@@ -73,17 +56,18 @@
           <small>{{ user[1] or '' }} {{ user[2] or '' }}</small>
         </td>
         <td>{{ user[4] or '未授权' }}</td>
+        <td>{{ user[5] }}</td>
+        <td>{{ user[6] }}</td>
         <td>
-          <input type="number" class="form-control form-control-sm points-input" value="{{ user[5] }}" min="0" style="width: 80px;" />
+          {{ user.inviter_username or '无' }}<br/>
+          {% if user[9] %}
+          <a href="/invitees?user_id={{ user[9] }}" class="btn btn-sm btn-primary mt-1">查看邀请用户</a>
+          {% endif %}
         </td>
-        <td>
-          <input type="number" class="form-control form-control-sm plays-input" value="{{ user[6] }}" min="0" style="width: 80px;" />
-        </td>
-        <td>{{ user[12] or '无' }}</td>
         <td>
           <select class="form-select form-select-sm block-status" style="width: 70px;">
-            <option value="0" {% if not user[11] %}selected{% endif %}>否</option>
-            <option value="1" {% if user[11] %}selected{% endif %}>是</option>
+            <option value="0" {% if not user[10] %}selected{% endif %}>否</option>
+            <option value="1" {% if user[10] %}selected{% endif %}>是</option>
           </select>
         </td>
         <td>{{ user[7]|format_datetime }}</td>
@@ -100,53 +84,23 @@
     </tbody>
   </table>
 
-  <!-- 分页导航 -->
   <nav aria-label="分页导航" class="d-flex justify-content-center">
     <ul class="pagination">
       <li class="page-item {% if stats.page <= 1 %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page - 1 }}&keyword={{ keyword or '' }}&authorized={{ is_authorized or '' }}">上一页</a>
+        <a class="page-link" href="?page={{ stats.page - 1 }}&keyword={{ keyword }}&authorized={{ is_authorized }}">上一页</a>
       </li>
       <li class="page-item disabled">
         <a class="page-link" href="#">{{ stats.page }} / {{ stats.total_pages }}</a>
       </li>
       <li class="page-item {% if stats.page >= stats.total_pages %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page + 1 }}&keyword={{ keyword or '' }}&authorized={{ is_authorized or '' }}">下一页</a>
+        <a class="page-link" href="?page={{ stats.page + 1 }}&keyword={{ keyword }}&authorized={{ is_authorized }}">下一页</a>
       </li>
     </ul>
   </nav>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  const rankModal = new bootstrap.Modal(document.getElementById('rankModal'));
-  const rankList = document.getElementById('rank-list');
-  document.getElementById('show-rank-btn').addEventListener('click', async () => {
-    rankList.innerHTML = '<li class="list-group-item">加载中...</li>';
-    rankModal.show();
-    try {
-      const res = await fetch('/rank_data');
-      if (!res.ok) throw new Error('获取排行榜失败');
-      const data = await res.json();
-      rankList.innerHTML = '';
-      if (data.length === 0) {
-        rankList.innerHTML = '<li class="list-group-item">暂无数据</li>';
-        return;
-      }
-      const medals = ["🥇", "🥈", "🥉"];
-      data.forEach((user, i) => {
-        const medal = medals[i] || '🎖️';
-        const username = user.username || user.first_name || '匿名';
-        const li = document.createElement('li');
-        li.className = 'list-group-item d-flex justify-content-between align-items-center';
-        li.textContent = `${medal} ${username} — ${user.points} 分`;
-        rankList.appendChild(li);
-      });
-    } catch (e) {
-      rankList.innerHTML = `<li class="list-group-item text-danger">加载失败，请刷新页面</li>`;
-      console.error(e);
-    }
-  });
-
+  // 封禁状态更新
   document.querySelectorAll('.block-status').forEach(select => {
     select.addEventListener('change', async function() {
       const tr = this.closest('tr');
@@ -166,12 +120,13 @@
     });
   });
 
+  // 保存按钮事件
   document.querySelectorAll('.save-btn').forEach(button => {
     button.addEventListener('click', async function() {
       const tr = this.closest('tr');
       const userId = tr.getAttribute('data-user-id');
-      const points = tr.querySelector('.points-input').value;
-      const plays = tr.querySelector('.plays-input').value;
+      const points = tr.querySelector('td:nth-child(4)').innerText;
+      const plays = tr.querySelector('td:nth-child(5)').innerText;
       const isBlocked = tr.querySelector('.block-status').value;
       try {
         const formData = new FormData();
@@ -191,6 +146,7 @@
     });
   });
 
+  // 删除按钮事件
   document.querySelectorAll('.delete-btn').forEach(button => {
     button.addEventListener('click', async function() {
       if (!confirm('确定要删除该用户吗？此操作不可撤销。')) return;
