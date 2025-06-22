@@ -95,69 +95,82 @@ def init_db():
 @app.route("/")
 @app.route("/")
 @app.route("/")
+@app.route("/")
+
 def dashboard():
-    keyword = request.args.get("keyword", "").strip()
-    authorized = request.args.get("authorized", "").strip()
-    page = int(request.args.get("page", 1))
-    per_page = 20
-    offset = (page - 1) * per_page
+    try:
+        keyword = request.args.get("keyword", "").strip()
+        authorized = request.args.get("authorized", "").strip()
+        page = int(request.args.get("page", 1))
+        per_page = 20
+        offset = (page - 1) * per_page
 
-    conditions = []
-    params = []
+        conditions = []
+        params = []
 
-    if keyword:
-        conditions.append("(u.username ILIKE %s OR u.phone ILIKE %s OR i.username ILIKE %s)")
-        params.extend([f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
+        if keyword:
+            # 注意这里 i.username 用于邀请人用户名模糊搜索
+            conditions.append("(u.username ILIKE %s OR u.phone ILIKE %s OR i.username ILIKE %s)")
+            params.extend([f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
 
-    if authorized == '1':
-        conditions.append("u.phone IS NOT NULL")
-    elif authorized == '0':
-        conditions.append("u.phone IS NULL")
+        if authorized == '1':
+            conditions.append("u.phone IS NOT NULL")
+        elif authorized == '0':
+            conditions.append("u.phone IS NULL")
 
-    where_sql = "WHERE " + " AND ".join(conditions) if conditions else ""
+        where_sql = "WHERE " + " AND ".join(conditions) if conditions else ""
 
-    with get_conn() as conn, conn.cursor() as c:
-        c.execute(f"SELECT COUNT(*) FROM users u {where_sql}", params)
-        total_count = c.fetchone()[0]
+        with get_conn() as conn, conn.cursor() as c:
+            # 总数查询时也要加 LEFT JOIN，保证 i 别名可用
+            c.execute(f"""
+                SELECT COUNT(*)
+                FROM users u
+                LEFT JOIN users i ON u.invited_by = i.user_id
+                {where_sql}
+            """, params)
+            total_count = c.fetchone()[0]
 
-        c.execute(f"""
-            SELECT u.user_id, u.first_name, u.last_name, u.username, u.phone, u.points, u.plays,
-                   u.created_at, u.last_play, u.invited_by, u.inviter_rewarded, u.is_blocked,
-                   i.username as inviter_username
-            FROM users u
-            LEFT JOIN users i ON u.invited_by = i.user_id
-            {where_sql}
-            ORDER BY u.created_at DESC
-            LIMIT %s OFFSET %s
-        """, params + [per_page, offset])
-        users = c.fetchall()
+            c.execute(f"""
+                SELECT u.user_id, u.first_name, u.last_name, u.username, u.phone, u.points, u.plays,
+                       u.created_at, u.last_play, u.invited_by, u.inviter_rewarded, u.is_blocked,
+                       i.username as inviter_username
+                FROM users u
+                LEFT JOIN users i ON u.invited_by = i.user_id
+                {where_sql}
+                ORDER BY u.created_at DESC
+                LIMIT %s OFFSET %s
+            """, params + [per_page, offset])
+            users = c.fetchall()
 
-        # 统计信息
-        c.execute("SELECT COUNT(*) FROM users")
-        total_users = c.fetchone()[0]
-        c.execute("SELECT COUNT(*) FROM users WHERE phone IS NOT NULL")
-        authorized_users = c.fetchone()[0]
-        c.execute("SELECT COUNT(*) FROM users WHERE is_blocked = 1")
-        blocked_users = c.fetchone()[0]
-        c.execute("SELECT COALESCE(SUM(points), 0) FROM users")
-        total_points = c.fetchone()[0]
+            # 统计信息
+            c.execute("SELECT COUNT(*) FROM users")
+            total_users = c.fetchone()[0]
+            c.execute("SELECT COUNT(*) FROM users WHERE phone IS NOT NULL")
+            authorized_users = c.fetchone()[0]
+            c.execute("SELECT COUNT(*) FROM users WHERE is_blocked = 1")
+            blocked_users = c.fetchone()[0]
+            c.execute("SELECT COALESCE(SUM(points), 0) FROM users")
+            total_points = c.fetchone()[0]
 
-    total_pages = (total_count + per_page - 1) // per_page
+        total_pages = (total_count + per_page - 1) // per_page
 
-    stats = {
-        "total_users": total_users,
-        "authorized_users": authorized_users,
-        "blocked_users": blocked_users,
-        "total_points": total_points,
-        "page": page,
-        "total_pages": total_pages
-    }
+        stats = {
+            "total_users": total_users,
+            "authorized_users": authorized_users,
+            "blocked_users": blocked_users,
+            "total_points": total_points,
+            "page": page,
+            "total_pages": total_pages
+        }
 
-    return render_template("dashboard.html",
-                           users=users,
-                           stats=stats,
-                           keyword=keyword,
-                           is_authorized=authorized)
+        return render_template("dashboard.html",
+                               users=users,
+                               stats=stats,
+                               keyword=keyword,
+                               is_authorized=authorized)
+    except Exception as e:
+        import traceback
+        return f"<pre>出错了：\n{traceback.format_exc()}</pre>"
     
 @app.route("/update_block_status", methods=["POST"])
 def update_block_status():
