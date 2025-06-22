@@ -68,11 +68,11 @@
         <td>
           <input type="number" class="form-control form-control-sm plays-input" value="{{ user[6] }}" min="0" style="width: 80px;" />
         </td>
-        <td>{{ user[11] or '无' }}</td>
+        <td>{{ user[12] or '无' }}</td>
         <td>
           <select class="form-select form-select-sm block-status" style="width: 70px;">
-            <option value="0" {% if not user[10] %}selected{% endif %}>否</option>
-            <option value="1" {% if user[10] %}selected{% endif %}>是</option>
+            <option value="0" {% if not user[11] %}selected{% endif %}>否</option>
+            <option value="1" {% if user[11] %}selected{% endif %}>是</option>
           </select>
         </td>
         <td>{{ user[7] }}</td>
@@ -105,7 +105,6 @@
 </div>
 
 <script>
-  // 封禁状态更新，使用 JSON 格式请求匹配后端 get_json()
   document.querySelectorAll('.block-status').forEach(select => {
     select.addEventListener('change', async function() {
       const tr = this.closest('tr');
@@ -125,7 +124,6 @@
     });
   });
 
-  // 保存按钮事件，发送 form-data
   document.querySelectorAll('.save-btn').forEach(button => {
     button.addEventListener('click', async function() {
       const tr = this.closest('tr');
@@ -151,7 +149,6 @@
     });
   });
 
-  // 删除按钮事件，发送 form-data
   document.querySelectorAll('.delete-btn').forEach(button => {
     button.addEventListener('click', async function() {
       if (!confirm('确定要删除该用户吗？此操作不可撤销。')) return;
