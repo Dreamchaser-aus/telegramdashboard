@@ -3,42 +3,40 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>用户管理后台 - 删除按钮强制显示版</title>
+<title>用户管理后台</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
 <style>
-  body { padding: 20px; background: #f8f9fa; }
+  body {
+    padding: 20px;
+    background-color: #f8f9fa;
+  }
   .stats {
-    background: #d1ecf1;
+    background-color: #d1ecf1;
     padding: 15px 25px;
     border-radius: 8px;
     margin-bottom: 25px;
     font-weight: 500;
     color: #0c5460;
-    box-shadow: 0 0 8px rgba(13,110,253,0.1);
+    box-shadow: 0 0 8px rgba(13, 110, 253, 0.1);
   }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  thead th {
-    background: #212529;
+  .table thead th {
+    background-color: #212529;
     color: white;
+    vertical-align: middle;
     text-align: center;
     white-space: nowrap;
-    padding: 10px;
   }
-  tbody td {
-    padding: 8px 6px;
+  .table tbody td {
+    vertical-align: middle;
     text-align: center;
-    white-space: nowrap;
     max-width: 120px;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    vertical-align: middle;
   }
-  tbody td.username,
-  tbody td.phone,
-  tbody td.inviter {
+  .table tbody td.username,
+  .table tbody td.phone,
+  .table tbody td.inviter {
     max-width: 180px;
     text-align: left;
   }
@@ -46,44 +44,57 @@
     width: 80px;
     margin: auto;
   }
-  /* 操作列 */
-  td.actions-cell {
-    min-width: 280px !important;
+  /* 操作列宽度和按钮样式调整 */
+  .table tbody td.actions-cell {
+    min-width: 300px !important;
     white-space: nowrap !important;
   }
-  /* 按钮样式强制 */
-  .btn {
+  .actions-cell button {
     white-space: nowrap !important;
     margin: 0 6px !important;
-    padding: 5px 14px !important;
+    padding: 5px 12px !important;
     font-size: 0.9rem !important;
-    border-radius: 4px !important;
+    border-radius: 0.25rem !important;
     cursor: pointer !important;
     border: none !important;
-    display: inline-block !important;
   }
   .btn-save {
     background-color: #198754 !important;
-    color: #fff !important;
+    color: white !important;
   }
   .btn-save:hover {
     background-color: #146c43 !important;
   }
   .btn-delete {
     background-color: #dc3545 !important;
-    color: #fff !important;
+    color: white !important;
   }
   .btn-delete:hover {
     background-color: #b02a37 !important;
   }
   .btn-record {
     background-color: #0dcaf0 !important;
-    color: #fff !important;
+    color: white !important;
   }
   .btn-record:hover {
     background-color: #31d2f2 !important;
   }
-  /* 确保按钮不被隐藏 */
+  .form-inline {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .form-inline input[type="text"] {
+    width: 280px;
+  }
+  .pagination {
+    justify-content: center;
+    margin-top: 10px;
+  }
+  td[title] {
+    cursor: help;
+  }
   .table-responsive {
     overflow-x: auto !important;
   }
@@ -152,13 +163,13 @@ async function deleteUser(userId, btn) {
 
 <div class="container">
 
-  <form method="get" class="form-inline" style="margin-bottom:20px; display:flex; gap:12px; flex-wrap:wrap;">
-    <input type="text" name="keyword" placeholder="模糊搜索用户名或手机号" class="form-control" value="{{ keyword }}" style="width:280px;">
+  <form method="get" class="form-inline">
+    <input type="text" name="keyword" placeholder="模糊搜索用户名或手机号" class="form-control" value="{{ keyword }}" title="输入用户名或手机号模糊搜索">
     <button type="submit" class="btn btn-primary">搜索</button>
     <a href="/rank_data" class="btn btn-success" target="_blank">查看今日排行榜</a>
   </form>
 
-  <div class="stats" title="统计信息" style="margin-bottom:20px;">
+  <div class="stats" title="统计信息">
     总用户数: {{ stats.total_users }} | 已授权手机号: {{ stats.authorized_users }} | 已封禁用户: {{ stats.blocked_users }} | 总积分: {{ stats.total_points }}
   </div>
 
@@ -184,21 +195,21 @@ async function deleteUser(userId, btn) {
           <td title="{{ user[0] }}">{{ user[0] }}</td>
           <td class="username" title="{{ user[3] }}">{{ user[3] }}</td>
           <td class="phone" title="{{ user[4] if user[4] else '未授权' }}">{{ user[4] if user[4] else '未授权' }}</td>
-          <td><input type="number" class="form-control points-input" value="{{ user[5] }}" title="编辑积分" style="width:80px; margin:auto;"></td>
-          <td><input type="number" class="form-control plays-input" value="{{ user[6] }}" title="编辑今日游戏次数" style="width:80px; margin:auto;"></td>
+          <td><input type="number" class="form-control points-input" value="{{ user[5] }}" title="编辑积分"></td>
+          <td><input type="number" class="form-control plays-input" value="{{ user[6] }}" title="编辑今日游戏次数"></td>
           <td class="inviter" title="{{ user[12] if user[12] else '无' }}">{{ user[12] if user[12] else '无' }}</td>
           <td>
-            <select class="form-select block-select" onchange="updateBlockStatus('{{ user[0] }}', this)" title="修改封禁状态" style="width:80px; margin:auto;">
+            <select class="form-select block-select" onchange="updateBlockStatus('{{ user[0] }}', this)" title="修改封禁状态">
               <option value="否" {% if not user[11] %}selected{% endif %}>否</option>
               <option value="是" {% if user[11] %}selected{% endif %}>是</option>
             </select>
           </td>
           <td title="{{ user[7] }}">{{ user[7] }}</td>
           <td title="{{ user[8] if user[8] else '无' }}">{{ user[8] if user[8] else '无' }}</td>
-          <td class="actions-cell" style="min-width:280px; white-space:nowrap;">
-            <button type="button" class="btn btn-record btn-sm" onclick="window.open('/game_history?user_id={{ user[0] }}', '_blank')" title="查看游戏记录">查看游戏记录</button>
-            <button type="button" class="btn btn-save btn-sm" onclick="saveUser('{{ user[0] }}', this)" title="保存修改">保存</button>
-            <button type="button" class="btn btn-delete btn-sm" onclick="deleteUser('{{ user[0] }}', this)" title="删除用户">删除用户</button>
+          <td class="actions-cell">
+            <button type="button" class="btn btn-record btn-sm" style="min-width:90px;" onclick="window.open('/game_history?user_id={{ user[0] }}', '_blank')" title="查看游戏记录">查看游戏记录</button>
+            <button type="button" class="btn btn-save btn-sm" style="min-width:70px;" onclick="saveUser('{{ user[0] }}', this)" title="保存修改">保存</button>
+            <button type="button" class="btn btn-delete btn-sm" style="min-width:70px;" onclick="deleteUser('{{ user[0] }}', this)" title="删除用户">删除用户</button>
           </td>
         </tr>
         {% endfor %}
@@ -207,7 +218,7 @@ async function deleteUser(userId, btn) {
   </div>
 
   <!-- 分页 -->
-  <nav aria-label="分页" style="margin-top:10px;">
+  <nav aria-label="分页">
     <ul class="pagination justify-content-center">
       <li class="page-item {% if stats.page == 1 %}disabled{% endif %}">
         <a class="page-link" href="?page={{ stats.page - 1 }}&keyword={{ keyword }}" tabindex="-1">上一页</a>
