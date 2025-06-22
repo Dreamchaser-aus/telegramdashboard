@@ -56,8 +56,12 @@
           <small>{{ user[1] or '' }} {{ user[2] or '' }}</small>
         </td>
         <td>{{ user[4] or '未授权' }}</td>
-        <td>{{ user[5] }}</td>
-        <td>{{ user[6] }}</td>
+        <td>
+          <input type="number" class="form-control form-control-sm points-input" value="{{ user[5] }}" min="0" style="width: 80px;" />
+        </td>
+        <td>
+          <input type="number" class="form-control form-control-sm plays-input" value="{{ user[6] }}" min="0" style="width: 80px;" />
+        </td>
         <td>
           {{ user.inviter_username or '无' }}<br/>
           {% if user[9] %}
@@ -100,7 +104,7 @@
 </div>
 
 <script>
-  // 封禁状态更新
+  // 封禁状态变更实时更新后端
   document.querySelectorAll('.block-status').forEach(select => {
     select.addEventListener('change', async function() {
       const tr = this.closest('tr');
@@ -120,13 +124,13 @@
     });
   });
 
-  // 保存按钮事件
+  // 保存按钮事件（保存积分、游戏次数、封禁状态）
   document.querySelectorAll('.save-btn').forEach(button => {
     button.addEventListener('click', async function() {
       const tr = this.closest('tr');
       const userId = tr.getAttribute('data-user-id');
-      const points = tr.querySelector('td:nth-child(4)').innerText;
-      const plays = tr.querySelector('td:nth-child(5)').innerText;
+      const points = tr.querySelector('.points-input').value;
+      const plays = tr.querySelector('.plays-input').value;
       const isBlocked = tr.querySelector('.block-status').value;
       try {
         const formData = new FormData();
