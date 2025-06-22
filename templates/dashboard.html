@@ -86,8 +86,8 @@
             <option value="1" {% if user[10] %}selected{% endif %}>是</option>
           </select>
         </td>
-        <td>{{ user[7] }}</td>
-        <td>{{ user[8] or '未知' }}</td>
+        <td>{{ user[7]|format_datetime }}</td>
+        <td>{{ user[8]|format_datetime or '未知' }}</td>
         <td>
           <button class="btn btn-sm btn-success save-btn">保存</button>
           <button class="btn btn-sm btn-danger delete-btn">删除</button>
