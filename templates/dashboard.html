@@ -1,245 +1,121 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>用户管理后台</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
-<style>
-  body {
-    padding: 20px;
-    background-color: #f8f9fa;
-  }
-  .stats {
-    background-color: #d1ecf1;
-    padding: 15px 25px;
-    border-radius: 8px;
-    margin-bottom: 25px;
-    font-weight: 500;
-    color: #0c5460;
-    box-shadow: 0 0 8px rgba(13, 110, 253, 0.1);
-  }
-  .table thead th {
-    background-color: #212529;
-    color: white;
-    vertical-align: middle;
-    text-align: center;
-    white-space: nowrap;
-  }
-  .table tbody td {
-    vertical-align: middle;
-    text-align: center;
-    max-width: 120px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .table tbody td.username,
-  .table tbody td.phone,
-  .table tbody td.inviter {
-    max-width: 180px;
-    text-align: left;
-  }
-  input.form-control, select.form-select {
-    width: 80px;
-    margin: auto;
-  }
-  /* 操作列宽度和按钮样式调整 */
-  td.actions-cell {
-    width: 320px !important;
-    white-space: nowrap !important;
-  }
-  .actions-cell button {
-    white-space: nowrap !important;
-    margin: 0 6px !important;
-    padding: 5px 14px !important;
-    font-size: 0.9rem !important;
-    border-radius: 0.25rem !important;
-    cursor: pointer !important;
-    border: none !important;
-    display: inline-block !important;
-  }
-  .btn-save {
-    background-color: #198754 !important;
-    color: #fff !important;
-  }
-  .btn-save:hover {
-    background-color: #146c43 !important;
-  }
-  .btn-delete {
-    background-color: #dc3545 !important;
-    color: #fff !important;
-  }
-  .btn-delete:hover {
-    background-color: #b02a37 !important;
-  }
-  .btn-record {
-    background-color: #0dcaf0 !important;
-    color: #fff !important;
-  }
-  .btn-record:hover {
-    background-color: #31d2f2 !important;
-  }
-  .form-inline {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin-bottom: 20px;
-  }
-  .form-inline input[type="text"] {
-    width: 280px;
-  }
-  .pagination {
-    justify-content: center;
-    margin-top: 10px;
-  }
-  td[title] {
-    cursor: help;
-  }
-  .table-responsive {
-    overflow-x: auto !important;
-    max-width: 100% !important;
-  }
-  table {
-    table-layout: fixed !important;
-    width: 100% !important;
-  }
-</style>
-<script>
-async function updateBlockStatus(userId, selectElem) {
-  const isBlocked = selectElem.value === '是' ? 1 : 0;
-  try {
-    const res = await fetch('/update_block_status', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({user_id: userId, is_blocked: isBlocked})
-    });
-    if (!res.ok) alert('更新失败');
-  } catch(e) {
-    alert('请求异常');
-  }
-}
-
-async function saveUser(userId, btn) {
-  const row = btn.closest('tr');
-  const points = row.querySelector('.points-input').value;
-  const plays = row.querySelector('.plays-input').value;
-  const blockSelect = row.querySelector('.block-select');
-  const isBlocked = blockSelect.value === '是' ? 1 : 0;
-
-  const formData = new FormData();
-  formData.append('user_id', userId);
-  formData.append('points', points);
-  formData.append('plays', plays);
-  formData.append('is_blocked', isBlocked);
-
-  try {
-    const res = await fetch('/update_user', {
-      method: 'POST',
-      body: formData
-    });
-    if (!res.ok) alert('保存失败');
-    else alert('保存成功');
-  } catch(e) {
-    alert('请求异常');
-  }
-}
-
-async function deleteUser(userId, btn) {
-  if (!confirm('确认删除该用户？此操作不可恢复！')) return;
-  const formData = new FormData();
-  formData.append('user_id', userId);
-  try {
-    const res = await fetch('/delete_user', {
-      method: 'POST',
-      body: formData
-    });
-    if (!res.ok) alert('删除失败');
-    else {
-      alert('删除成功');
-      btn.closest('tr').remove();
-    }
-  } catch(e) {
-    alert('请求异常');
-  }
-}
-</script>
+  <meta charset="UTF-8" />
+  <title>Telegram 用户后台管理</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
 </head>
 <body>
+<div class="container py-4">
+  <h1 class="mb-4">Telegram 用户后台管理</h1>
 
-<div class="container">
-
-  <form method="get" class="form-inline">
-    <input type="text" name="keyword" placeholder="模糊搜索用户名或手机号" class="form-control" value="{{ keyword }}" title="输入用户名或手机号模糊搜索" />
-    <button type="submit" class="btn btn-primary">搜索</button>
-    <a href="/rank_data" class="btn btn-success" target="_blank">查看今日排行榜</a>
+  <form method="get" class="row g-3 mb-3">
+    <div class="col-md-3">
+      <input type="text" name="keyword" class="form-control" placeholder="用户名或手机号" value="{{ keyword or '' }}" />
+    </div>
+    <div class="col-md-3">
+      <input type="text" name="invited_by" class="form-control" placeholder="邀请人用户名" value="{{ invited_by_filter or '' }}" />
+    </div>
+    <div class="col-md-3">
+      <input type="text" name="phone" class="form-control" placeholder="手机号" value="{{ phone_filter or '' }}" />
+    </div>
+    <div class="col-md-2">
+      <select name="authorized" class="form-select">
+        <option value="" {% if not is_authorized %}selected{% endif %}>全部</option>
+        <option value="1" {% if is_authorized == '1' %}selected{% endif %}>已授权手机号</option>
+        <option value="0" {% if is_authorized == '0' %}selected{% endif %}>未授权手机号</option>
+      </select>
+    </div>
+    <div class="col-md-1">
+      <button type="submit" class="btn btn-primary w-100">搜索</button>
+    </div>
   </form>
 
-  <div class="stats" title="统计信息">
-    总用户数: {{ stats.total_users }} | 已授权手机号: {{ stats.authorized_users }} | 已封禁用户: {{ stats.blocked_users }} | 总积分: {{ stats.total_points }}
+  <div class="alert alert-info">
+    总用户数: {{ stats.total_users }} |
+    已授权手机号: {{ stats.authorized_users }} |
+    已封禁用户: {{ stats.blocked_users }} |
+    总积分: {{ stats.total_points }}
   </div>
 
-  <div class="table-responsive">
-    <table class="table table-bordered table-hover align-middle">
-      <thead>
-        <tr>
-          <th>用户ID</th>
-          <th>用户名</th>
-          <th>手机号</th>
-          <th>积分</th>
-          <th>今日游戏次数</th>
-          <th>邀请人</th>
-          <th>封禁状态</th>
-          <th>注册时间</th>
-          <th>最后游戏时间</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for user in users %}
-        <tr>
-          <td title="{{ user[0] }}">{{ user[0] }}</td>
-          <td class="username" title="{{ user[3] }}">{{ user[3] }}</td>
-          <td class="phone" title="{{ user[4] if user[4] else '未授权' }}">{{ user[4] if user[4] else '未授权' }}</td>
-          <td><input type="number" class="form-control points-input" value="{{ user[5] }}" title="编辑积分" /></td>
-          <td><input type="number" class="form-control plays-input" value="{{ user[6] }}" title="编辑今日游戏次数" /></td>
-          <td class="inviter" title="{{ user[12] if user[12] else '无' }}">{{ user[12] if user[12] else '无' }}</td>
-          <td>
-            <select class="form-select block-select" onchange="updateBlockStatus('{{ user[0] }}', this)" title="修改封禁状态">
-              <option value="否" {% if not user[11] %}selected{% endif %}>否</option>
-              <option value="是" {% if user[11] %}selected{% endif %}>是</option>
-            </select>
-          </td>
-          <td title="{{ user[7] }}">{{ user[7] }}</td>
-          <td title="{{ user[8] if user[8] else '无' }}">{{ user[8] if user[8] else '无' }}</td>
-          <td class="actions-cell" style="width: 320px; white-space: nowrap;">
-            <button type="button" class="btn btn-record btn-sm" style="min-width: 100px;" onclick="window.open('/game_history?user_id={{ user[0] }}', '_blank')" title="查看游戏记录">查看游戏记录</button>
-            <button type="button" class="btn btn-save btn-sm" style="min-width: 80px;" onclick="saveUser('{{ user[0] }}', this)" title="保存修改">保存</button>
-            <button type="button" class="btn btn-delete btn-sm" style="min-width: 80px;" onclick="deleteUser('{{ user[0] }}', this)" title="删除用户">删除用户</button>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  <table class="table table-bordered table-striped align-middle">
+    <thead class="table-dark">
+      <tr>
+        <th>用户ID</th>
+        <th>用户名</th>
+        <th>手机号</th>
+        <th>积分</th>
+        <th>今日游戏次数</th>
+        <th>邀请人</th>
+        <th>封禁状态</th>
+        <th>注册时间</th>
+        <th>最后游戏时间</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for user in users %}
+      <tr>
+        <td>{{ user[0] }}</td>
+        <td>
+          {{ user[3] or '无用户名' }}<br/>
+          <small>{{ user[1] or '' }} {{ user[2] or '' }}</small>
+        </td>
+        <td>{{ user[4] or '未授权' }}</td>
+        <td>{{ user[5] }}</td>
+        <td>{{ user[6] }}</td>
+        <td>{{ user[11] or '无' }}</td>
+        <td>
+          <select class="form-select form-select-sm block-status" data-user-id="{{ user[0] }}">
+            <option value="0" {% if not user[10] %}selected{% endif %}>否</option>
+            <option value="1" {% if user[10] %}selected{% endif %}>是</option>
+          </select>
+        </td>
+        <td>{{ user[7] }}</td>
+        <td>{{ user[8] or '未知' }}</td>
+        <td>
+          <a href="/game_history?user_id={{ user[0] }}" class="btn btn-sm btn-info">查看游戏记录</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10" class="text-center">无用户数据</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 
-  <nav aria-label="分页">
-    <ul class="pagination justify-content-center">
-      <li class="page-item {% if stats.page == 1 %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page - 1 }}&keyword={{ keyword }}" tabindex="-1">上一页</a>
+  <nav aria-label="分页导航" class="d-flex justify-content-center">
+    <ul class="pagination">
+      <li class="page-item {% if stats.page <= 1 %}disabled{% endif %}">
+        <a class="page-link" href="?page={{ stats.page - 1 }}">上一页</a>
       </li>
       <li class="page-item disabled">
         <a class="page-link" href="#">{{ stats.page }} / {{ stats.total_pages }}</a>
       </li>
-      <li class="page-item {% if stats.page == stats.total_pages %}disabled{% endif %}">
-        <a class="page-link" href="?page={{ stats.page + 1 }}&keyword={{ keyword }}">下一页</a>
+      <li class="page-item {% if stats.page >= stats.total_pages %}disabled{% endif %}">
+        <a class="page-link" href="?page={{ stats.page + 1 }}">下一页</a>
       </li>
     </ul>
   </nav>
-
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
+<script>
+document.querySelectorAll('.block-status').forEach(select => {
+  select.addEventListener('change', async function() {
+    const userId = this.getAttribute('data-user-id');
+    const isBlocked = this.value;
+    try {
+      const res = await fetch('/update_block_status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ user_id: userId, is_blocked: isBlocked })
+      });
+      if (!res.ok) throw new Error('更新失败');
+      alert('封禁状态已更新');
+    } catch (e) {
+      alert('更新封禁状态失败');
+    }
+  });
+});
+</script>
 </body>
 </html>
