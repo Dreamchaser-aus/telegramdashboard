@@ -25,6 +25,9 @@
     </div>
   </form>
 
+  <!-- 新增排行榜按钮 -->
+  <button id="show-rank-btn" class="btn btn-info mb-3">今日排行榜</button>
+
   <div class="alert alert-info">
     总用户数: {{ stats.total_users }} |
     已授权手机号: {{ stats.authorized_users }} |
@@ -56,12 +59,8 @@
           <small>{{ user[1] or '' }} {{ user[2] or '' }}</small>
         </td>
         <td>{{ user[4] or '未授权' }}</td>
-        <td>
-          <input type="number" class="form-control form-control-sm points-input" value="{{ user[5] }}" min="0" style="width: 80px;" />
-        </td>
-        <td>
-          <input type="number" class="form-control form-control-sm plays-input" value="{{ user[6] }}" min="0" style="width: 80px;" />
-        </td>
+        <td>{{ user[5] }}</td>
+        <td>{{ user[6] }}</td>
         <td>
           {{ user.inviter_username or '无' }}<br/>
           {% if user[9] %}
@@ -103,8 +102,30 @@
   </nav>
 </div>
 
+<!-- 排行榜模态框 -->
+<div class="modal fade" id="rankModal" tabindex="-1" aria-labelledby="rankModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="rankModalLabel">今日积分排行榜</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body">
+        <ul id="rank-list" class="list-group">
+          <li class="list-group-item">加载中...</li>
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
 <script>
-  // 封禁状态变更实时更新后端
+  // 封禁状态更新
   document.querySelectorAll('.block-status').forEach(select => {
     select.addEventListener('change', async function() {
       const tr = this.closest('tr');
@@ -124,13 +145,13 @@
     });
   });
 
-  // 保存按钮事件（保存积分、游戏次数、封禁状态）
+  // 保存按钮事件
   document.querySelectorAll('.save-btn').forEach(button => {
     button.addEventListener('click', async function() {
       const tr = this.closest('tr');
       const userId = tr.getAttribute('data-user-id');
-      const points = tr.querySelector('.points-input').value;
-      const plays = tr.querySelector('.plays-input').value;
+      const points = tr.querySelector('td:nth-child(4)').innerText;
+      const plays = tr.querySelector('td:nth-child(5)').innerText;
       const isBlocked = tr.querySelector('.block-status').value;
       try {
         const formData = new FormData();
@@ -171,7 +192,35 @@
       }
     });
   });
+
+  // 今日排行榜按钮逻辑
+  document.getElementById('show-rank-btn').addEventListener('click', async () => {
+    const rankList = document.getElementById('rank-list');
+    rankList.innerHTML = '<li class="list-group-item">加载中...</li>';
+
+    try {
+      const res = await fetch('/rank_data');
+      if (!res.ok) throw new Error('请求失败');
+      const data = await res.json();
+
+      if (!data.length) {
+        rankList.innerHTML = '<li class="list-group-item">今日暂无积分记录</li>';
+        return;
+      }
+
+      const medals = ['🥇', '🥈', '🥉', '🎖', '🎖', '🎖', '🎖', '🎖', '🎖', '🎖'];
+      rankList.innerHTML = data.map((item, i) => {
+        const name = item.username || item.first_name || '匿名';
+        return `<li class="list-group-item">${medals[i] || '🎖'} ${name} - ${item.points} 分</li>`;
+      }).join('');
+    } catch (e) {
+      rankList.innerHTML = '<li class="list-group-item text-danger">加载失败，请稍后重试。</li>';
+    }
+
+    // 弹出模态框
+    const rankModal = new bootstrap.Modal(document.getElementById('rankModal'));
+    rankModal.show();
+  });
 </script>
 </body>
 </html>
-
